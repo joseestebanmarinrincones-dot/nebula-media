@@ -2,9 +2,10 @@ param(
     [string]$Version = ''
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
+if (-not (Test-Path 'VERSION')) { throw 'No se encontró VERSION.' }
 
 $gh = (Get-Command gh.exe -ErrorAction SilentlyContinue).Source
 if (-not $gh) { throw 'Falta GitHub CLI (gh). Instálalo con: winget install GitHub.cli' }
@@ -58,7 +59,7 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Versión inválida: $Version"
 if ($Version -eq $current) { throw 'La versión nueva debe ser distinta de la actual.' }
 
 $tag = "v$Version"
-& $gh release view $tag *> $null
+& $gh release view $tag 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) { throw "El release $tag ya existe. Usa otro número de versión." }
 
 Write-Host "Preparando Nebula Media $Version..."
