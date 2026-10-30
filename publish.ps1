@@ -83,18 +83,32 @@ $baseUrl = "https://github.com/$repo/releases/download/$tag"
     "sha256=$hash"
 ) | Set-Content -Path 'dist\latest.txt' -Encoding ASCII
 
-Write-Host 'Guardando y subiendo el código...'
-& $git config user.name 'joseestebanmarinrincones-dot'
-& $git config user.email '349629224+joseestebanmarinrincones-dot@users.noreply.github.com'
-& $gh auth setup-git *> $null
-& $git add -A
-$changes = & $git status --porcelain
-if ($changes) {
-    & $git commit -m "Release v$Version" | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el commit.' }
+function Invoke-GitQuiet {
+    param([string[]]$GitArgs)
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    & $git @GitArgs 2>$null | Out-Null
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $previous
+    return $code
 }
-& $git push origin main
-if ($LASTEXITCODE -ne 0) { throw 'No se pudo subir el código a GitHub.' }
+
+Write-Host 'Guardando y subiendo el código...'
+[void](Invoke-GitQuiet @('config', 'user.name', 'joseestebanmarinrincones-dot'))
+[void](Invoke-GitQuiet @('config', 'user.email', '349629224+joseestebanmarinrincones-dot@users.noreply.github.com'))
+[void](Invoke-GitQuiet @('config', 'core.autocrlf', 'false'))
+& $gh auth setup-git *> $null
+if ((Invoke-GitQuiet @('add', '-A')) -ne 0) { throw 'No se pudo preparar el commit.' }
+$changes = & $git status --porcelain 2>$null
+if ($changes) {
+    if ((Invoke-GitQuiet @('commit', '-m', "Release v$Version")) -ne 0) {
+        throw 'No se pudo crear el commit.'
+    }
+}
+if ((Invoke-GitQuiet @('push', 'origin', 'main')) -ne 0) {
+    throw 'No se pudo subir el código a GitHub.'
+}
+Write-Host 'Código subido.'
 
 Write-Host "Publicando release $tag..."
 $assets = @($setup, $portable, $exe, (Join-Path $root 'dist\latest.txt'),

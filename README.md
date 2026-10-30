@@ -6,6 +6,8 @@ Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 
 ![Biblioteca](docs/preview-biblioteca.png)
 
+![Icono de archivo musical](docs/preview-audio-icon.png)
+
 ![Editor de audio](docs/preview-editor.png)
 
 > **Nota sobre "nivel kernel":** la interfaz, el drag & drop OLE y el editor de audio viven en modo usuario por diseño. Un driver kernel no puede crear ventanas ni usar OLE, y un fallo en él provocaría un BSOD. La app está escrita en C++ nativo Win32/COM (sin Electron, sin runtime externo) y usa directamente OLE, Shell, GDI+ y Media Foundation, que es la capa más baja segura para este tipo de programa.
