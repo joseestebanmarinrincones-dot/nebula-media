@@ -95,8 +95,9 @@ gh auth refresh -h github.com -s workflow
 ```
 
 Después copia `docs/release-workflow.yml` a `.github/workflows/release.yml` y
-haz commit. El workflow calcula `1.0.<run_number>`, compila y publica solo. No
-uses `publish.ps1` y el workflow a la vez para el mismo cambio.
+haz commit. El workflow incrementa el patch de `VERSION`, compila, publica y
+vuelve a guardar `VERSION` con `[skip ci]`. No uses `publish.ps1` y el workflow
+a la vez para el mismo cambio.
 
 ## Estructura
 

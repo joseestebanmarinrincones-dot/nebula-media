@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: nebula-release
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: windows-latest
@@ -19,7 +23,9 @@ jobs:
       - name: Calcular versión
         shell: pwsh
         run: |
-          $version = "1.0.${{ github.run_number }}"
+          $current = (Get-Content VERSION -Raw).Trim()
+          $parts = $current.Split('.')
+          $version = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"
           Set-Content -Path VERSION -Value $version -Encoding ascii
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Versión de esta publicación: $version"
@@ -79,3 +85,14 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+
+      - name: Guardar VERSION actualizado
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSION
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          git commit -m "chore: bump VERSION to $env:VERSION [skip ci]"
+          git push

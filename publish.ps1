@@ -6,6 +6,9 @@ $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 if (-not (Test-Path 'VERSION')) { throw 'No se encontró VERSION.' }
+if (Get-Process -Name NebulaMedia -ErrorAction SilentlyContinue) {
+    throw 'Cierra Nebula Media antes de publicar una versión.'
+}
 
 $gh = (Get-Command gh.exe -ErrorAction SilentlyContinue).Source
 if (-not $gh) { throw 'Falta GitHub CLI (gh). Instálalo con: winget install GitHub.cli' }
