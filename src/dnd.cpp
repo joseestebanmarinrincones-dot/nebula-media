@@ -272,6 +272,50 @@ private:
     LONG ref_ = 1;
 };
 
+IDataObject* CreateShellFileDataObject(const std::vector<std::wstring>& paths) {
+    if (paths.empty()) return nullptr;
+    const std::wstring parent = ParentPath(paths.front());
+    if (parent.empty()) return nullptr;
+    for (const auto& path : paths) {
+        if (!SamePath(ParentPath(path), parent)) return nullptr;
+    }
+
+    PIDLIST_ABSOLUTE parentPidl = nullptr;
+    SFGAOF attributes = 0;
+    if (FAILED(SHParseDisplayName(parent.c_str(), nullptr, &parentPidl, 0,
+                                  &attributes)) ||
+        !parentPidl) {
+        return nullptr;
+    }
+
+    std::vector<PIDLIST_ABSOLUTE> absolutePidls;
+    std::vector<PCUITEMID_CHILD> children;
+    absolutePidls.reserve(paths.size());
+    children.reserve(paths.size());
+    bool ok = true;
+    for (const auto& path : paths) {
+        PIDLIST_ABSOLUTE pidl = nullptr;
+        if (FAILED(SHParseDisplayName(path.c_str(), nullptr, &pidl, 0, &attributes)) ||
+            !pidl) {
+            ok = false;
+            break;
+        }
+        absolutePidls.push_back(pidl);
+        children.push_back(ILFindLastID(pidl));
+    }
+
+    IDataObject* data = nullptr;
+    if (ok) {
+        SHCreateDataObject(parentPidl, static_cast<UINT>(children.size()),
+                           children.data(), nullptr, IID_IDataObject,
+                           reinterpret_cast<void**>(&data));
+    }
+
+    for (PIDLIST_ABSOLUTE pidl : absolutePidls) CoTaskMemFree(pidl);
+    CoTaskMemFree(parentPidl);
+    return data;
+}
+
 }  // namespace
 
 IDataObject* CreateFileDataObject(const std::vector<std::wstring>& paths) {
@@ -282,7 +326,8 @@ IDataObject* CreateFileDataObject(const std::vector<std::wstring>& paths) {
 HRESULT BeginFileDrag(HWND owner, const std::vector<std::wstring>& paths) {
     if (paths.empty()) return E_INVALIDARG;
 
-    IDataObject* data = CreateFileDataObject(paths);
+    IDataObject* data = CreateShellFileDataObject(paths);
+    if (!data) data = CreateFileDataObject(paths);
     if (!data) return E_OUTOFMEMORY;
     auto* source = new FileDropSource();
     DWORD effect = DROPEFFECT_NONE;

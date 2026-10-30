@@ -61,9 +61,9 @@ CÓMO USARLA
     de filtros, con Ctrl+rueda del ratón o con Ctrl +, Ctrl - y Ctrl 0. El
     zoom se guarda para la próxima vez.
   - Arrastra una miniatura a tu editor de vídeo. También puedes seleccionar
-    varias con Ctrl o Mayús y arrastrarlas todas. Mientras arrastras hacia
-    fuera, la ventana se aparta y se vuelve translúcida para que puedas soltar
-    el archivo sobre el editor aunque estuviera debajo.
+    varias con Ctrl o Mayús y arrastrarlas todas. Nébula permanece visible
+    mientras arrastras y envía el mismo formato de datos que el Explorador de
+    Windows para que Premiere, DaVinci, CapCut y otros lo acepten.
   - Doble clic en una carpeta para entrar. Doble clic en un audio abre el
     editor. Doble clic en otros archivos los abre con su aplicación habitual.
   - Clic derecho: abrir, mostrar en el Explorador, copiar ruta, copiar a

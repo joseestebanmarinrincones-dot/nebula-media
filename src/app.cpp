@@ -1395,31 +1395,15 @@ void App::StartDragSelection() {
     dragArmed_ = false;
     pressCard_ = -1;
 
-    // While dragging out, fade the window, make it click-through and move it
-    // behind everything so files can be dropped on an editor that was covered
-    // by this always-on-top window.
-    draggingOut_ = true;
-    const int savedOpacity = opacity_;
+    // Nébula stays visible and keeps its z-order while dragging. It only
+    // becomes click-through for the duration of the OLE operation so an editor
+    // underneath can receive the drop.
     const LONG_PTR savedStyle = GetWindowLongPtrW(hwnd_, GWL_EXSTYLE);
-    opacity_ = std::min(opacity_, 78);
-    windowConstantAlpha_ = 72;
     SetWindowLongPtrW(hwnd_, GWL_EXSTYLE, savedStyle | WS_EX_TRANSPARENT);
     DragAcceptFiles(hwnd_, FALSE);
-    SetWindowPos(hwnd_, HWND_BOTTOM, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    Render();
     BeginFileDrag(hwnd_, paths);
     DragAcceptFiles(hwnd_, TRUE);
-    windowConstantAlpha_ = 255;
     SetWindowLongPtrW(hwnd_, GWL_EXSTYLE, savedStyle);
-    opacity_ = savedOpacity;
-    draggingOut_ = false;
-    if (pin_) {
-        ApplyTopmost();
-    } else {
-        SetWindowPos(hwnd_, HWND_TOP, 0, 0, 0, 0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    }
     Render();
 }
 

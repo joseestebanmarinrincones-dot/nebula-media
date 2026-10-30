@@ -21,7 +21,7 @@ Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 - Filtros Todo / Imágenes / Vídeos / Audio.
 - Zoom de tarjetas configurable (80–160%) con controles en la barra de filtros, Ctrl+rueda y Ctrl +/−/0. Se guarda en la configuración.
 - Búsqueda instantánea en la carpeta actual y búsqueda recursiva ("Subcarpetas") con límites de seguridad.
-- Drag out real con `CF_HDROP`: arrastra una o varias selecciones a Premiere, DaVinci Resolve, CapCut, After Effects, Explorer, etc. Durante el arrastre la ventana se aparta, se vuelve translúcida y deja pasar el puntero para poder soltar sobre un editor que estaba debajo.
+- Drag out real con Shell IDList + `CF_HDROP`, igual que el Explorador de Windows: arrastra una o varias selecciones a Premiere, DaVinci Resolve, CapCut, After Effects, Explorer, etc. La ventana permanece visible (ya no se oculta) y solo se vuelve click-through durante el arrastre.
 - Pestaña Google Drive:
   - Detecta la unidad local de Google Drive para escritorio (`Mi unidad`).
   - Permite elegir cualquier carpeta sincronizada (por ejemplo, un mount de rclone).
