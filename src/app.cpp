@@ -12,7 +12,7 @@ namespace nebula {
 
 namespace {
 
-constexpr int kFilterCount = 5;
+constexpr int kFilterCount = 4;
 constexpr int kMenuItemOpen = 40001;
 
 constexpr int kMenuItemReveal = 40002;
@@ -24,7 +24,7 @@ constexpr int kMenuItemRefresh = 40007;
 constexpr int kMenuItemEditAudio = 40008;
 constexpr int kMenuItemPlay = 40009;
 
-constexpr int kFilterWidths[kFilterCount] = {54, 80, 64, 60, 86};
+constexpr int kFilterWidths[kFilterCount] = {54, 80, 64, 60};
 
 bool InRect(const Gdiplus::RectF& r, float x, float y) {
     return x >= r.X && y >= r.Y && x < r.GetRight() && y < r.GetBottom();
@@ -81,7 +81,6 @@ bool MatchesItem(const MediaItem& item, Filter filter, const std::wstring& query
         case Filter::Images: return item.kind == ItemKind::Image;
         case Filter::Videos: return item.kind == ItemKind::Video;
         case Filter::Audio: return item.kind == ItemKind::Audio;
-        case Filter::Programs: return item.kind == ItemKind::Program;
         case Filter::All:
         default: return true;
     }
@@ -776,6 +775,7 @@ void App::ScanFolder(ViewState& view) {
         item.size = (static_cast<uint64_t>(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
         item.ext = item.isDir ? L"" : ExtensionOf(item.name);
         item.kind = KindForFile(item.name, item.isDir);
+        if (!item.isDir && item.kind == ItemKind::Other) continue;
         item.cloudOnly = !item.isDir && IsCloudPlaceholder(data.dwFileAttributes);
         view.items.push_back(std::move(item));
 
@@ -852,12 +852,16 @@ void App::RunDeepSearch(ViewState& view) {
                             data.nFileSizeLow;
                 item.ext = isDir ? L"" : ExtensionOf(name);
                 item.kind = KindForFile(name, isDir);
-                item.cloudOnly = !isDir && IsCloudPlaceholder(data.dwFileAttributes);
-                item.context = RelativeTo(dir, view.path);
-                results.push_back(std::move(item));
-                if (static_cast<int>(results.size()) >= maxResults) {
-                    limited = true;
-                    break;
+                if (!isDir && item.kind == ItemKind::Other) {
+                    // Ignore executables, games, documents and unknown files.
+                } else {
+                    item.cloudOnly = !isDir && IsCloudPlaceholder(data.dwFileAttributes);
+                    item.context = RelativeTo(dir, view.path);
+                    results.push_back(std::move(item));
+                    if (static_cast<int>(results.size()) >= maxResults) {
+                        limited = true;
+                        break;
+                    }
                 }
             }
 
@@ -1934,8 +1938,7 @@ void App::OnClickZone(int id) {
         case zid::FilterAll:
         case zid::FilterImages:
         case zid::FilterVideos:
-        case zid::FilterAudio:
-        case zid::FilterPrograms: {
+        case zid::FilterAudio: {
             ViewState& view = View();
             view.filter = static_cast<Filter>(id - zid::FilterAll);
             view.scroll = 0;

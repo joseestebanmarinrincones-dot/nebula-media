@@ -165,13 +165,10 @@ ItemKind KindForFile(const std::wstring& path, bool isDir) {
     static const std::unordered_set<std::wstring> audios = {
         L".mp3", L".wav", L".flac", L".aac", L".ogg", L".m4a", L".wma", L".aiff",
         L".aif", L".opus", L".mid", L".midi", L".amr", L".ape"};
-    static const std::unordered_set<std::wstring> programs = {
-        L".exe", L".lnk", L".bat", L".cmd", L".msi", L".appref-ms", L".com"};
 
     if (images.count(ext)) return ItemKind::Image;
     if (videos.count(ext)) return ItemKind::Video;
     if (audios.count(ext)) return ItemKind::Audio;
-    if (programs.count(ext)) return ItemKind::Program;
     return ItemKind::Other;
 }
 

@@ -57,7 +57,7 @@ bool LaunchSelfUpdate(const std::wstring& updatePath, std::wstring& error);
 
 // ---------------------------------------------------------------- data model
 
-enum class Filter { All = 0, Images, Videos, Audio, Programs, Count };
+enum class Filter { All = 0, Images, Videos, Audio, Count };
 enum class Tab { Library = 0, Drive = 1 };
 enum class ItemKind { Folder, Image, Video, Audio, Program, Other };
 
@@ -273,7 +273,7 @@ enum : int {
     Min, Max, Close, Pin, Settings,
     TabLibrary, TabDrive,
     Back, Up, Refresh, OpenFolder, Search, ClearSearch,
-    FilterAll, FilterImages, FilterVideos, FilterAudio, FilterPrograms,
+    FilterAll, FilterImages, FilterVideos, FilterAudio,
     Recursive,
     DriveDetect, DrivePick, DriveWeb,
     DriveChange, DriveRefresh,

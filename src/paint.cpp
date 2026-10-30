@@ -258,8 +258,7 @@ std::wstring RateText(int rate) {
     return buffer;
 }
 
-const wchar_t* kFilterNames[5] = {L"Todo", L"Imágenes", L"Vídeos", L"Audio",
-                                  L"Programas"};
+const wchar_t* kFilterNames[4] = {L"Todo", L"Imágenes", L"Vídeos", L"Audio"};
 
 }  // namespace
 
@@ -561,7 +560,7 @@ void App::DrawToolbar(Graphics& g, const Layout& layout) {
 
 void App::DrawFilters(Graphics& g, const Layout& layout) {
     ViewState& view = View();
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 4; ++i) {
         const int id = zid::FilterAll + i;
         const RectF* rect = ZoneRect(layout, id);
         if (!rect) continue;

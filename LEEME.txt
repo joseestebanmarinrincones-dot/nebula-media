@@ -1,5 +1,5 @@
 NEBULA MEDIA
-Gestor de vídeos, imágenes, audio y programas + editor de audio
+Gestor de vídeos, imágenes y audio + editor de audio
 ========================================================================
 
 QUÉ ES
@@ -7,7 +7,8 @@ QUÉ ES
 Nebula Media es una aplicación nativa para Windows que reúne tus archivos
 multimedia en una sola ventana flotante:
 
-  - Biblioteca con miniaturas de imágenes, vídeos, audio y programas.
+  - Biblioteca con miniaturas de imágenes, vídeos y audio. Los ejecutables,
+    juegos, documentos y archivos desconocidos se ignoran por completo.
   - Buscador instantáneo y búsqueda dentro de subcarpetas.
   - Arrastra archivos FUERA de la app y suéltalos en Premiere, DaVinci
     Resolve, CapCut, After Effects o cualquier programa que acepte archivos.

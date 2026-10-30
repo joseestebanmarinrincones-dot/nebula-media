@@ -1,6 +1,6 @@
 # Nébula Media
 
-Gestor nativo de vídeos, imágenes, audio y programas para Windows, con buscador, pestaña de Google Drive, arrastrar y soltar hacia otros programas, ventana siempre visible con fondo translúcido, actualizaciones automáticas y un editor de audio básico.
+Gestor nativo de vídeos, imágenes y audio para Windows, con buscador, pestaña de Google Drive, arrastrar y soltar hacia otros programas, ventana siempre visible con fondo translúcido, actualizaciones automáticas y un editor de audio básico.
 
 Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 
@@ -16,8 +16,9 @@ Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 
 ## Características
 
-- Biblioteca con miniaturas reales (Shell thumbnail provider) para imágenes, vídeos, audio, programas y carpetas.
-- Filtros Todo / Imágenes / Vídeos / Audio / Programas.
+- Biblioteca con miniaturas reales (Shell thumbnail provider) para imágenes, vídeos, audio y carpetas.
+- Solo se detectan extensiones de audio, imagen y vídeo. Ejecutables, juegos, documentos y archivos desconocidos se ignoran.
+- Filtros Todo / Imágenes / Vídeos / Audio.
 - Zoom de tarjetas configurable (80–160%) con controles en la barra de filtros, Ctrl+rueda y Ctrl +/−/0. Se guarda en la configuración.
 - Búsqueda instantánea en la carpeta actual y búsqueda recursiva ("Subcarpetas") con límites de seguridad.
 - Drag out real con `CF_HDROP`: arrastra una o varias selecciones a Premiere, DaVinci Resolve, CapCut, After Effects, Explorer, etc. Durante el arrastre la ventana se aparta, se vuelve translúcida y deja pasar el puntero para poder soltar sobre un editor que estaba debajo.
