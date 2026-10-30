@@ -282,6 +282,7 @@ enum : int {
     EditorPlay, EditorStop, EditorTrim, EditorDelete,
     EditorFadeIn, EditorFadeOut, EditorVolDown, EditorVolUp,
     Waveform,
+    ZoomOut, ZoomReset, ZoomIn,
     SidebarBase = 1000,
     CardBase = 2000
 };
@@ -319,6 +320,7 @@ struct Layout {
     Gdiplus::RectF pathPill{};
     Gdiplus::RectF search{};
     Gdiplus::RectF searchClear{};
+    Gdiplus::RectF zoomGroup{};
     Gdiplus::RectF sidebarTip{};
     bool showSidebarTip = false;
     Gdiplus::RectF scrollThumb{};
@@ -467,6 +469,7 @@ private:
     void SaveWindowPlacement();
     int ShadowMargin() const;
     float S(float value) const;
+    void SetZoom(int zoomPercent);
     void StartUpdateCheck();
     void UpdateUninstallVersion();
 
@@ -527,6 +530,7 @@ private:
     bool settingsOpen_ = false;
     bool draggingOpacity_ = false;
     bool draggingOut_ = false;
+    int zoom_ = 100;
 
     std::unique_ptr<ThumbnailLoader> thumbs_;
     uint64_t lastThumbPaint_ = 0;

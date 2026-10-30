@@ -55,6 +55,9 @@ CÓMO USARLA
   - Haz clic en una carpeta de la barra lateral o pulsa "Abrir carpeta".
   - Escribe directamente para buscar en la carpeta actual.
   - Activa "Subcarpetas" para buscar en todo el árbol de la carpeta.
+  - Ajusta el tamaño de las tarjetas con los botones − / % / + de la barra
+    de filtros, con Ctrl+rueda del ratón o con Ctrl +, Ctrl - y Ctrl 0. El
+    zoom se guarda para la próxima vez.
   - Arrastra una miniatura a tu editor de vídeo. También puedes seleccionar
     varias con Ctrl o Mayús y arrastrarlas todas. Mientras arrastras hacia
     fuera, la ventana se aparta y se vuelve translúcida para que puedas soltar

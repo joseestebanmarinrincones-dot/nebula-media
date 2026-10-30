@@ -185,6 +185,8 @@ void App::LoadSettings() {
     if (opacity_ < 100) opacity_ = 100;
     if (opacity_ > 255) opacity_ = 255;
     pin_ = RegReadDword(L"Pin", 1) != 0;
+    zoom_ = static_cast<int>(RegReadDword(L"Zoom", 100));
+    zoom_ = std::clamp(((zoom_ + 5) / 10) * 10, 80, 160);
     library_.path = RegReadStr(L"Library", L"");
     if (!DirExists(library_.path)) library_.path = DefaultLibraryPath();
     driveRoot_ = RegReadStr(L"DriveRoot", L"");
@@ -481,7 +483,12 @@ LRESULT App::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
             Layout layout = BuildLayout();
             if (InRect(layout.content, static_cast<float>(pt.x),
                        static_cast<float>(pt.y))) {
-                OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
+                if ((GET_KEYSTATE_WPARAM(wParam) & MK_CONTROL) != 0) {
+                    const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+                    if (delta != 0) SetZoom(zoom_ + (delta > 0 ? 10 : -10));
+                } else {
+                    OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
+                }
             }
             return 0;
         }
@@ -684,8 +691,19 @@ void App::SaveSettings() {
     SaveWindowPlacement();
     RegWriteDword(L"Opacity", static_cast<DWORD>(opacity_));
     RegWriteDword(L"Pin", pin_ ? 1 : 0);
+    RegWriteDword(L"Zoom", static_cast<DWORD>(zoom_));
     RegWriteStr(L"Library", library_.path);
     RegWriteStr(L"DriveRoot", driveRoot_);
+}
+
+void App::SetZoom(int zoomPercent) {
+    zoomPercent = std::clamp(zoomPercent, 80, 160);
+    if (zoomPercent == zoom_) return;
+    zoom_ = zoomPercent;
+    RegWriteDword(L"Zoom", static_cast<DWORD>(zoom_));
+    View().scroll = 0;
+    hoverCard_ = -1;
+    Render();
 }
 
 void App::ToggleMaximize() {
@@ -1459,6 +1477,20 @@ void App::OnKeyDown(WPARAM key, bool ctrl, bool shift, bool alt) {
         Render();
         return;
     }
+    if (!editorOpen_ && ctrl) {
+        if (key == VK_OEM_PLUS || key == VK_ADD) {
+            SetZoom(zoom_ + 10);
+            return;
+        }
+        if (key == VK_OEM_MINUS || key == VK_SUBTRACT) {
+            SetZoom(zoom_ - 10);
+            return;
+        }
+        if (key == '0' || key == VK_NUMPAD0) {
+            SetZoom(100);
+            return;
+        }
+    }
 
     if (editorOpen_) {
         if (key == VK_ESCAPE) {
@@ -1927,6 +1959,15 @@ void App::OnClickZone(int id) {
             Render();
             break;
         }
+        case zid::ZoomOut:
+            SetZoom(zoom_ - 10);
+            break;
+        case zid::ZoomReset:
+            SetZoom(100);
+            break;
+        case zid::ZoomIn:
+            SetZoom(zoom_ + 10);
+            break;
         case zid::DriveDetect:
             DetectDrive(true);
             break;
@@ -2275,6 +2316,26 @@ Layout App::BuildLayout() {
         AddZone(layout, zid::Recursive,
                 Gdiplus::RectF(chipX, chipY, S(116), chipH));
 
+        // Zoom controls at the right edge of the filter bar.
+        const float zoomW = S(110);
+        const float zoomH = S(28);
+        layout.zoomGroup = Gdiplus::RectF(
+            layout.filters.GetRight() - zoomW, layout.filters.Y + S(5), zoomW,
+            zoomH);
+        const float zoomButton = S(26);
+        const float zoomResetW = S(46);
+        const float zoomGap = S(4);
+        AddZone(layout, zid::ZoomOut,
+                Gdiplus::RectF(layout.zoomGroup.X + S(2), layout.zoomGroup.Y,
+                               zoomButton, zoomH));
+        AddZone(layout, zid::ZoomReset,
+                Gdiplus::RectF(layout.zoomGroup.X + S(2) + zoomButton + zoomGap,
+                               layout.zoomGroup.Y, zoomResetW, zoomH));
+        AddZone(layout, zid::ZoomIn,
+                Gdiplus::RectF(layout.zoomGroup.X + S(2) + zoomButton + zoomGap +
+                                   zoomResetW + zoomGap,
+                               layout.zoomGroup.Y, zoomButton, zoomH));
+
         // Main content.
         layout.content = Gdiplus::RectF(
             layout.toolbar.X, layout.filters.GetBottom() + S(6), layout.toolbar.Width,
@@ -2314,9 +2375,10 @@ Layout App::BuildLayout() {
         } else {
             ViewState& view = View();
             layout.visible = VisibleIndices(view);
-            const float cardW = S(176);
-            const float cardH = S(172);
-            const float gap = S(14);
+            const float zoomScale = std::clamp(zoom_ / 100.0f, 0.8f, 1.6f);
+            const float cardW = S(176) * zoomScale;
+            const float cardH = S(172) * zoomScale;
+            const float gap = S(14) * zoomScale;
             const int columns = std::max(
                 1, static_cast<int>((layout.grid.Width + gap) / (cardW + gap)));
             layout.columns = columns;

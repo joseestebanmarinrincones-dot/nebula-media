@@ -600,6 +600,36 @@ void App::DrawFilters(Graphics& g, const Layout& layout) {
                    S(10.3), view.recursive ? ui::Accent2 : ui::TextSecondary);
     }
 
+    const RectF& zoomGroup = layout.zoomGroup;
+    FillRound(g, zoomGroup, S(9), Color(ui::WithAlpha(ui::TextPrimary, 4)));
+    StrokeRound(g, zoomGroup, S(9), Color(ui::WithAlpha(ui::TextPrimary, 9)));
+
+    auto zoomButton = [&](int id, bool plus) {
+        const RectF* rect = ZoneRect(layout, id);
+        if (!rect) return;
+        const bool hover = hoverId_ == id;
+        if (hover) {
+            FillRound(g, *rect, S(7), Color(ui::WithAlpha(ui::TextPrimary, 10)));
+        }
+        const float cx = rect->X + rect->Width * 0.5f;
+        const float cy = rect->Y + rect->Height * 0.5f;
+        Pen pen(hover ? ui::TextPrimary : ui::TextSecondary, S(1.3f));
+        g.DrawLine(&pen, cx - S(4), cy, cx + S(4), cy);
+        if (plus) g.DrawLine(&pen, cx, cy - S(4), cx, cy + S(4));
+    };
+    zoomButton(zid::ZoomOut, false);
+    zoomButton(zid::ZoomIn, true);
+
+    const RectF* zoomReset = ZoneRect(layout, zid::ZoomReset);
+    if (zoomReset) {
+        if (hoverId_ == zid::ZoomReset) {
+            FillRound(g, *zoomReset, S(7), Color(ui::WithAlpha(ui::TextPrimary, 10)));
+        }
+        DrawTextIn(g, std::to_wstring(zoom_) + L"%", *zoomReset, S(9.4),
+                   hoverId_ == zid::ZoomReset ? ui::TextPrimary : ui::TextSecondary,
+                   FontStyleRegular, StringAlignmentCenter, StringAlignmentCenter);
+    }
+
     std::wstring countText;
     if (layout.showConnect) {
         countText = L"Sin conexión";
@@ -613,9 +643,10 @@ void App::DrawFilters(Graphics& g, const Layout& layout) {
         countText = buffer;
         if (view.deep) countText += L" · subcarpetas";
     }
+    const float countRight = layout.zoomGroup.X - S(10);
     DrawTextIn(g, countText,
-               RectF(layout.filters.X + layout.filters.Width - S(280),
-                     layout.filters.Y, S(280), layout.filters.Height),
+               RectF(countRight - S(220), layout.filters.Y, S(220),
+                     layout.filters.Height),
                S(10.2), pendingDeep_ ? ui::Accent2 : ui::TextMuted, FontStyleRegular,
                StringAlignmentFar, StringAlignmentCenter);
 }
@@ -753,7 +784,9 @@ void App::DrawGrid(Graphics& g, const Layout& layout) {
 void App::DrawCard(Graphics& g, const CardHit& card, bool selected, bool hover,
                    const MediaItem& item) {
     const RectF& r = card.rect;
-    const float radius = S(12);
+    const float scale = std::clamp(r.Width / std::max(1.0f, S(176.0f)), 0.75f, 1.7f);
+    const float fontScale = std::clamp(scale, 0.9f, 1.3f);
+    const float radius = S(12) * scale;
     Color fill = ui::CardFill;
     if (selected) fill = Color(ui::WithAlpha(ui::Accent, 26));
     else if (hover) fill = ui::CardFillHover;
@@ -766,8 +799,9 @@ void App::DrawCard(Graphics& g, const CardHit& card, bool selected, bool hover,
                           : Color(ui::WithAlpha(ui::TextPrimary, 10)));
     }
 
-    const RectF thumb(r.X + S(10), r.Y + S(10), r.Width - S(20), S(102));
-    const float thumbRadius = S(9);
+    const float pad = S(10) * scale;
+    const RectF thumb(r.X + pad, r.Y + pad, r.Width - pad * 2, S(102) * scale);
+    const float thumbRadius = S(9) * scale;
     GraphicsPath thumbPath;
     AddRound(thumbPath, thumb, thumbRadius);
 
@@ -777,20 +811,25 @@ void App::DrawCard(Graphics& g, const CardHit& card, bool selected, bool hover,
         Color(ui::WithAlpha(ui::C(255, 7, 8, 12), 90)), LinearGradientModeVertical);
     g.FillPath(&placeholder, &thumbPath);
     if (item.kind == ItemKind::Folder) {
+        const float fw = S(56) * scale;
+        const float fh = S(44) * scale;
         DrawFolderGlyph(g,
-                        RectF(thumb.X + (thumb.Width - S(56)) * 0.5f,
-                              thumb.Y + (thumb.Height - S(44)) * 0.5f, S(56), S(44)),
+                        RectF(thumb.X + (thumb.Width - fw) * 0.5f,
+                              thumb.Y + (thumb.Height - fh) * 0.5f, fw, fh),
                         Color(ui::WithAlpha(kindColor, 205)));
     } else if (item.kind == ItemKind::Program) {
+        const float pw = S(44) * scale;
+        const float ph = S(34) * scale;
         DrawProgramGlyph(g,
-                         RectF(thumb.X + (thumb.Width - S(44)) * 0.5f,
-                               thumb.Y + (thumb.Height - S(34)) * 0.5f, S(44), S(34)),
+                         RectF(thumb.X + (thumb.Width - pw) * 0.5f,
+                               thumb.Y + (thumb.Height - ph) * 0.5f, pw, ph),
                          Color(ui::WithAlpha(kindColor, 210)));
     } else if (item.kind == ItemKind::Audio) {
         DrawAudioFileArtwork(g, thumb);
     } else {
         Glyph(g, KindGlyph(item.kind),
-              RectF(thumb.X, thumb.Y, thumb.Width, thumb.Height), S(31),
+              RectF(thumb.X, thumb.Y, thumb.Width, thumb.Height),
+              S(31) * std::clamp(scale, 0.9f, 1.35f),
               Color(ui::WithAlpha(kindColor, 185)));
     }
 
@@ -813,10 +852,11 @@ void App::DrawCard(Graphics& g, const CardHit& card, bool selected, bool hover,
                     destination = RectF(thumb.X + (thumb.Width - w) * 0.5f,
                                         thumb.Y + (thumb.Height - h) * 0.5f, w, h);
                 } else {
-                    float scale = std::min((thumb.Width - S(14)) / iw,
-                                           (thumb.Height - S(14)) / ih);
-                    float w = iw * scale;
-                    float h = ih * scale;
+                    const float fitting = std::min(
+                        (thumb.Width - S(14) * scale) / iw,
+                        (thumb.Height - S(14) * scale) / ih);
+                    float w = iw * fitting;
+                    float h = ih * fitting;
                     destination = RectF(thumb.X + (thumb.Width - w) * 0.5f,
                                         thumb.Y + (thumb.Height - h) * 0.5f, w, h);
                 }
@@ -833,29 +873,35 @@ void App::DrawCard(Graphics& g, const CardHit& card, bool selected, bool hover,
     StrokeRound(g, thumb, thumbRadius, Color(ui::WithAlpha(ui::TextPrimary, 10)));
 
     DrawTextIn(g, item.name,
-               RectF(r.X + S(11), r.Y + S(116), r.Width - S(22), S(18)), S(11.8),
-               ui::TextPrimary);
+               RectF(r.X + S(11) * scale, r.Y + S(116) * scale,
+                     r.Width - S(22) * scale, S(18) * fontScale),
+               S(11.8) * fontScale, ui::TextPrimary);
 
-    const RectF meta(r.X + S(11), r.Y + S(137), r.Width - S(22), S(16));
-    FillCircle(g, meta.X + S(3), meta.Y + meta.Height * 0.5f, S(3),
-               Color(ui::WithAlpha(kindColor, 230)));
+    const RectF meta(r.X + S(11) * scale, r.Y + S(137) * scale,
+                     r.Width - S(22) * scale, S(16) * fontScale);
+    FillCircle(g, meta.X + S(3) * fontScale, meta.Y + meta.Height * 0.5f,
+               S(3) * fontScale, Color(ui::WithAlpha(kindColor, 230)));
     DrawTextIn(g, KindMeta(item),
-               RectF(meta.X + S(11), meta.Y, meta.Width - S(11), meta.Height), S(9.7),
-               ui::TextSecondary);
+               RectF(meta.X + S(11) * fontScale, meta.Y,
+                     meta.Width - S(11) * fontScale, meta.Height),
+               S(9.7) * fontScale, ui::TextSecondary);
 
     if (!item.isDir && item.cloudOnly) {
-        const RectF badge(thumb.GetRight() - S(31), thumb.GetBottom() - S(25), S(24),
-                          S(18));
-        FillRound(g, badge, S(7), Color(150, 3, 5, 10));
-        Glyph(g, L"\uE753", badge, S(9.5), ui::Accent2);
+        const RectF badge(thumb.GetRight() - S(31) * scale,
+                          thumb.GetBottom() - S(25) * scale, S(24) * scale,
+                          S(18) * scale);
+        FillRound(g, badge, S(7) * scale, Color(150, 3, 5, 10));
+        Glyph(g, L"\uE753", badge, S(9.5) * scale, ui::Accent2);
     }
 
     if (selected) {
-        const float cx = thumb.GetRight() - S(17);
-        const float cy = thumb.Y + S(17);
-        FillCircle(g, cx, cy, S(9), ui::Accent);
-        Glyph(g, L"\uE73E", RectF(cx - S(7), cy - S(7), S(14), S(14)), S(8),
-              Color(255, 255, 255, 255));
+        const float cx = thumb.GetRight() - S(17) * scale;
+        const float cy = thumb.Y + S(17) * scale;
+        FillCircle(g, cx, cy, S(9) * scale, ui::Accent);
+        Glyph(g, L"\uE73E",
+              RectF(cx - S(7) * scale, cy - S(7) * scale, S(14) * scale,
+                    S(14) * scale),
+              S(8) * scale, Color(255, 255, 255, 255));
     }
 }
 

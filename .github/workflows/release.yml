@@ -1,0 +1,98 @@
+name: Compilar y publicar
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nebula-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Calcular versión
+        shell: pwsh
+        run: |
+          $current = (Get-Content VERSION -Raw).Trim()
+          $parts = $current.Split('.')
+          $version = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"
+          Set-Content -Path VERSION -Value $version -Encoding ascii
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Versión de esta publicación: $version"
+
+      - name: Instalar LLVM-MinGW
+        shell: pwsh
+        run: |
+          $headers = @{ 'User-Agent' = 'NebulaMediaBuild' }
+          $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest' -Headers $headers
+          $asset = $release.assets | Where-Object { $_.name -match 'ucrt-x86_64\.zip$' } | Select-Object -First 1
+          if (-not $asset) { throw 'No se encontró LLVM-MinGW UCRT x86_64.' }
+          $zip = Join-Path $env:RUNNER_TEMP 'llvm-mingw.zip'
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip
+          $dir = Join-Path $env:RUNNER_TEMP 'llvm-mingw'
+          Expand-Archive -Path $zip -DestinationPath $dir -Force
+          $gpp = Get-ChildItem -Path $dir -Filter 'g++.exe' -Recurse | Select-Object -First 1
+          if (-not $gpp) { throw 'No se encontró g++.' }
+          $gpp.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & $gpp.FullName --version
+
+      - name: Compilar app e instalador
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la compilación.' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/make_installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Falló el instalador.' }
+
+      - name: Generar latest.txt
+        shell: pwsh
+        run: |
+          $version = $env:VERSION
+          $hash = (Get-FileHash 'dist/NebulaMedia.exe' -Algorithm SHA256).Hash.ToLower()
+          $base = "https://github.com/${{ github.repository }}/releases/download/v$version"
+          @(
+            "version=$version",
+            "url=$base/NebulaMedia.exe",
+            "sha256=$hash"
+          ) | Set-Content -Path 'dist/latest.txt' -Encoding ascii
+          Get-Content 'dist/latest.txt'
+
+      - name: Publicar release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Nebula Media ${{ env.VERSION }}
+          body: |
+            Actualización automática de Nebula Media.
+            Versión: ${{ env.VERSION }}
+          files: |
+            dist/NebulaMedia-Setup-${{ env.VERSION }}.exe
+            dist/NebulaMedia-Portable-${{ env.VERSION }}.zip
+            dist/NebulaMedia.exe
+            dist/latest.txt
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+          make_latest: true
+
+      - name: Guardar VERSION actualizado
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSION
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          git commit -m "chore: bump VERSION to $env:VERSION [skip ci]"
+          git push origin HEAD:main

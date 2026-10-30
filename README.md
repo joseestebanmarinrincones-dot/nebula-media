@@ -6,6 +6,8 @@ Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 
 ![Biblioteca](docs/preview-biblioteca.png)
 
+![Zoom de tarjetas](docs/preview-zoom.png)
+
 ![Icono de archivo musical](docs/preview-audio-icon.png)
 
 ![Editor de audio](docs/preview-editor.png)
@@ -16,6 +18,7 @@ Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 
 - Biblioteca con miniaturas reales (Shell thumbnail provider) para imágenes, vídeos, audio, programas y carpetas.
 - Filtros Todo / Imágenes / Vídeos / Audio / Programas.
+- Zoom de tarjetas configurable (80–160%) con controles en la barra de filtros, Ctrl+rueda y Ctrl +/−/0. Se guarda en la configuración.
 - Búsqueda instantánea en la carpeta actual y búsqueda recursiva ("Subcarpetas") con límites de seguridad.
 - Drag out real con `CF_HDROP`: arrastra una o varias selecciones a Premiere, DaVinci Resolve, CapCut, After Effects, Explorer, etc. Durante el arrastre la ventana se aparta, se vuelve translúcida y deja pasar el puntero para poder soltar sobre un editor que estaba debajo.
 - Pestaña Google Drive:
@@ -128,6 +131,7 @@ Se guarda en `HKCU\Software\NebulaMedia`:
 - `DriveRoot`: raíz de Drive elegida.
 - `Opacity`: 100-255 (fondo).
 - `Pin`: 0/1 (siempre visible).
+- `Zoom`: 80-160 (tamaño de las tarjetas).
 - `WinX`, `WinY`, `WinW`, `WinH`, `Maximized`: colocación.
 - `InstallDir`: la escribe el instalador.
 
