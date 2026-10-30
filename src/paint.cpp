@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <cwctype>
 #include <unordered_map>
 
@@ -268,6 +269,140 @@ void ShutdownPaintResources() {
 }
 
 // ------------------------------------------------------------------ root paint
+
+bool App::EasterEggActive() const {
+    // The cameo only appears with an exact "2015" search and the settings
+    // slider showing 75%.
+    const std::wstring& raw = View().search;
+    const size_t first = raw.find_first_not_of(L" \t\r\n");
+    if (first == std::wstring::npos) return false;
+    const size_t last = raw.find_last_not_of(L" \t\r\n");
+    if (raw.substr(first, last - first + 1) != L"2015") return false;
+
+    const float shown =
+        40.0f + (static_cast<float>(opacity_) - 100.0f) / 155.0f * 60.0f;
+    return std::lround(shown) == 75;
+}
+
+Gdiplus::Bitmap* App::EasterEggBitmap() {
+    if (easterEggTried_) return easterEgg_.get();
+    easterEggTried_ = true;
+    if (!instance_) return nullptr;
+
+    HRSRC info = FindResourceW(instance_, MAKEINTRESOURCEW(101), RT_RCDATA);
+    if (!info) return nullptr;
+    const DWORD bytes = SizeofResource(instance_, info);
+    HGLOBAL loaded = LoadResource(instance_, info);
+    if (!loaded || bytes == 0) return nullptr;
+    const void* data = LockResource(loaded);
+    if (!data) return nullptr;
+
+    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (!memory) return nullptr;
+    void* buffer = GlobalLock(memory);
+    if (!buffer) {
+        GlobalFree(memory);
+        return nullptr;
+    }
+    memcpy(buffer, data, bytes);
+    GlobalUnlock(memory);
+
+    IStream* stream = nullptr;
+    if (FAILED(CreateStreamOnHGlobal(memory, TRUE, &stream))) {
+        GlobalFree(memory);
+        return nullptr;
+    }
+    auto decoded = std::make_unique<Gdiplus::Bitmap>(stream, FALSE);
+    if (decoded->GetLastStatus() != Gdiplus::Ok) {
+        stream->Release();
+        return nullptr;
+    }
+    const int width = static_cast<int>(decoded->GetWidth());
+    const int height = static_cast<int>(decoded->GetHeight());
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
+        stream->Release();
+        return nullptr;
+    }
+
+    // Normalise indexed/paletted artwork into 32-bit ARGB first.
+    Gdiplus::Bitmap source(width, height, PixelFormat32bppARGB);
+    {
+        Gdiplus::Graphics graphics(&source);
+        graphics.SetCompositingMode(CompositingModeSourceCopy);
+        graphics.DrawImage(decoded.get(), 0, 0, width, height);
+    }
+    decoded.reset();
+    stream->Release();
+
+    auto art =
+        std::make_unique<Gdiplus::Bitmap>(width, height, PixelFormat32bppPARGB);
+    if (art->GetLastStatus() != Gdiplus::Ok) return nullptr;
+
+    Gdiplus::Rect area(0, 0, width, height);
+    Gdiplus::BitmapData from{}, to{};
+    if (source.LockBits(&area, Gdiplus::ImageLockModeRead,
+                        PixelFormat32bppARGB, &from) != Gdiplus::Ok) {
+        return nullptr;
+    }
+    if (art->LockBits(&area, Gdiplus::ImageLockModeWrite,
+                      PixelFormat32bppPARGB, &to) != Gdiplus::Ok) {
+        source.UnlockBits(&from);
+        return nullptr;
+    }
+    for (int y = 0; y < height; ++y) {
+        const BYTE* src = static_cast<const BYTE*>(from.Scan0) +
+                          static_cast<ptrdiff_t>(y) * from.Stride;
+        BYTE* dst = static_cast<BYTE*>(to.Scan0) +
+                    static_cast<ptrdiff_t>(y) * to.Stride;
+        for (int x = 0; x < width; ++x) {
+            const int b = src[x * 4 + 0];
+            const int g = src[x * 4 + 1];
+            const int r = src[x * 4 + 2];
+            const int a = src[x * 4 + 3];
+            const int luma = (r * 299 + g * 587 + b * 114) / 1000;
+            int ink = 255 - luma;
+            ink = ink * a / 255;
+            // The original is black ink on white paper: white becomes
+            // transparent and the ink becomes a faint periwinkle ghost.
+            const int alpha = ink * 42 / 100;
+            dst[x * 4 + 0] = static_cast<BYTE>(255 * alpha / 255);
+            dst[x * 4 + 1] = static_cast<BYTE>(232 * alpha / 255);
+            dst[x * 4 + 2] = static_cast<BYTE>(225 * alpha / 255);
+            dst[x * 4 + 3] = static_cast<BYTE>(alpha);
+        }
+    }
+    art->UnlockBits(&to);
+    source.UnlockBits(&from);
+
+    easterEgg_ = std::move(art);
+    return easterEgg_.get();
+}
+
+void App::DrawEasterEgg(Graphics& g, const Layout& layout) {
+    Bitmap* art = EasterEggBitmap();
+    if (!art) return;
+    const RectF area = layout.grid.Width > 0 && layout.grid.Height > 0
+                           ? layout.grid
+                           : layout.content;
+    if (area.Width <= 0 || area.Height <= 0) return;
+    const float artW = static_cast<float>(art->GetWidth());
+    const float artH = static_cast<float>(art->GetHeight());
+    if (artW <= 0 || artH <= 0) return;
+
+    float scale = std::min(area.Width * 0.72f / artW,
+                           area.Height * 0.82f / artH);
+    if (scale >= 1.0f) scale = std::floor(scale);
+    scale = std::max(scale, 0.25f);
+    const float w = artW * scale;
+    const float h = artH * scale;
+    const float x = area.X + (area.Width - w) * 0.5f;
+    const float y = area.Y + (area.Height - h) * 0.5f;
+
+    const GraphicsState state = g.Save();
+    g.SetInterpolationMode(InterpolationModeNearestNeighbor);
+    g.DrawImage(art, RectF(x, y, w, h));
+    g.Restore(state);
+}
 
 void App::DrawWindow(Graphics& g, const Layout& layout) {
     EnsureBackgroundCache(layout);
@@ -749,6 +884,9 @@ void App::DrawSidebar(Graphics& g, const Layout& layout) {
 
 void App::DrawGrid(Graphics& g, const Layout& layout) {
     const ViewState& view = View();
+    // When the cameo is summoned, leave the stage to the artwork instead of
+    // covering its face with the empty-results placeholder.
+    if (layout.visible.empty() && EasterEggActive()) return;
     if (layout.visible.empty()) {
         const float cx = layout.grid.X + layout.grid.Width * 0.5f;
         const float cy = layout.grid.Y + layout.grid.Height * 0.42f;

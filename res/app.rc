@@ -4,6 +4,9 @@
 1 ICON "nebula.ico"
 1 24 "app.manifest"
 
+// Hidden easter egg artwork (search "2015" at 75% opacity).
+101 RCDATA "tobyfoxinho2005.png"
+
 1 VERSIONINFO
  FILEVERSION NEBULA_RC_FILEVERSION
  PRODUCTVERSION NEBULA_RC_FILEVERSION

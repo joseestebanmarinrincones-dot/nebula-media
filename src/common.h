@@ -411,6 +411,9 @@ private:
     void Render(bool rebuildLayout = true);
     void EnsureBuffer(int width, int height);
     void EnsureBackgroundCache(const Layout& layout);
+    bool EasterEggActive() const;
+    Gdiplus::Bitmap* EasterEggBitmap();
+    void DrawEasterEgg(Gdiplus::Graphics& g, const Layout& layout);
 
     void DrawWindow(Gdiplus::Graphics& g, const Layout& layout);
     void DrawBackground(Gdiplus::Graphics& g, const Layout& layout);
@@ -568,6 +571,9 @@ private:
     int backgroundDpi_ = 0;
     int backgroundOpacity_ = -1;
     bool backgroundMaximized_ = false;
+    bool backgroundEaster_ = false;
+    std::unique_ptr<Gdiplus::Bitmap> easterEgg_;
+    bool easterEggTried_ = false;
 
     // audio editor
     bool editorOpen_ = false;

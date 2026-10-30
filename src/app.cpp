@@ -2556,9 +2556,10 @@ void App::EnsureBackgroundCache(const Layout& layout) {
     const int width = client.right - client.left;
     const int height = client.bottom - client.top;
     if (width <= 0 || height <= 0) return;
+    const bool easter = EasterEggActive();
     if (backgroundCache_ && width == backgroundW_ && height == backgroundH_ &&
         dpi_ == backgroundDpi_ && opacity_ == backgroundOpacity_ &&
-        maximized_ == backgroundMaximized_) {
+        maximized_ == backgroundMaximized_ && easter == backgroundEaster_) {
         return;
     }
 
@@ -2575,12 +2576,14 @@ void App::EnsureBackgroundCache(const Layout& layout) {
         graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
         graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
         DrawBackground(graphics, layout);
+        if (easter) DrawEasterEgg(graphics, layout);
         backgroundCache_ = std::move(bitmap);
         backgroundW_ = width;
         backgroundH_ = height;
         backgroundDpi_ = dpi_;
         backgroundOpacity_ = opacity_;
         backgroundMaximized_ = maximized_;
+        backgroundEaster_ = easter;
     } catch (const std::bad_alloc&) {
         backgroundCache_.reset();
     }
