@@ -28,8 +28,9 @@ ACTUALIZACIONES AUTOMÁTICAS
 ---------------------------
   - Solo hay que instalar una vez. Al abrir Nebula Media, la app consulta
     las publicaciones de GitHub y descarga la última versión disponible.
-    La actualización se aplica al cerrar el programa; la próxima vez que lo
-    abras ya estará actualizado.
+    Cuando está lista aparece un botón "Actualizar" en la cabecera: tú
+    decides cuándo instalarla. Al pulsarlo, la app se reinicia ya actualizada.
+    Si no lo pulsas, sigues usando la versión que tienes.
   - Requiere conexión a Internet. La app no envía datos personales: solo
     consulta el archivo público de versiones y descarga el ejecutable nuevo.
   - Las actualizaciones se validan con SHA-256 contra el archivo publicado en

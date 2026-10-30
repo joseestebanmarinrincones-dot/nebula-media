@@ -408,6 +408,29 @@ void App::DrawHeader(Graphics& g, const Layout& layout) {
                    S(12.0), textColor, active ? FontStyleBold : FontStyleRegular);
     }
 
+    if (updateReady_) {
+        const RectF* rect = ZoneRect(layout, zid::UpdateButton);
+        if (rect) {
+            const bool hover = hoverId_ == zid::UpdateButton;
+            GraphicsPath path;
+            AddRound(path, *rect, S(9));
+            LinearGradientBrush fill(
+                *rect,
+                hover ? Color(255, 159, 122, 255) : Color(ui::Accent),
+                Color(ui::Accent2), LinearGradientModeForwardDiagonal);
+            g.FillPath(&fill, &path);
+            Pen border(Color(ui::WithAlpha(ui::TextPrimary, 45)), 1.0f);
+            g.DrawPath(&border, &path);
+            Glyph(g, L"\uE896",
+                  RectF(rect->X + S(10), rect->Y, S(15), rect->Height), S(10.5),
+                  Color(255, 255, 255, 255));
+            DrawTextIn(g, L"Actualizar",
+                       RectF(rect->X + S(29), rect->Y, rect->Width - S(34),
+                             rect->Height),
+                       S(10.2), Color(255, 255, 255, 255), FontStyleBold);
+        }
+    }
+
     // Window controls.
     const int controlIds[5] = {zid::Settings, zid::Pin, zid::Min, zid::Max, zid::Close};
     for (int id : controlIds) {
@@ -947,7 +970,7 @@ void App::DrawStatus(Graphics& g, const Layout& layout) {
             color = ui::TextSecondary;
         } else if (updateReady_) {
             right = L"Actualización " + updateVersion_ +
-                    L" lista · se instalará al cerrar";
+                    L" lista · pulsa Actualizar";
             color = ui::Accent2;
         } else if (layout.showConnect) {
             right = L"Instala Drive para escritorio o elige una carpeta";

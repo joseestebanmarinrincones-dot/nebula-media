@@ -420,7 +420,8 @@ UpdateResult CheckForUpdatesBlocking(const std::wstring& currentVersion) {
     return result;
 }
 
-bool LaunchSelfUpdate(const std::wstring& updatePath, std::wstring& error) {
+bool LaunchSelfUpdate(const std::wstring& updatePath, std::wstring& error,
+                      bool restart) {
     error.clear();
     if (!FileExists(updatePath)) {
         error = L"El archivo de actualización ya no existe.";
@@ -441,7 +442,7 @@ bool LaunchSelfUpdate(const std::wstring& updatePath, std::wstring& error) {
     }
 
     const std::wstring scriptPath = JoinPath(updatesDir, L"apply-update.ps1");
-    const std::string script = R"PS(param([int]$AppPid,[string]$Target,[string]$Source)
+    const std::string script = R"PS(param([int]$AppPid,[string]$Target,[string]$Source,[int]$Restart)
 $ErrorActionPreference = 'SilentlyContinue'
 for ($i = 0; $i -lt 240; $i++) {
     if (-not (Get-Process -Id $AppPid -ErrorAction SilentlyContinue)) { break }
@@ -459,6 +460,9 @@ for ($i = 0; $i -lt 60; $i++) {
 }
 if ($copied) {
     Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
+}
+if ($Restart -eq 1) {
+    Start-Process -FilePath $Target
 }
 Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
 )PS";
@@ -487,7 +491,8 @@ Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
         L" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File " +
         quoted(scriptPath) + L" -AppPid " +
         std::to_wstring(GetCurrentProcessId()) + L" -Target " + quoted(target) +
-        L" -Source " + quoted(updatePath);
+        L" -Source " + quoted(updatePath) + L" -Restart " +
+        (restart ? L"1" : L"0");
 
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);

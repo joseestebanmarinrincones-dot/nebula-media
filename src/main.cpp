@@ -60,6 +60,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
                 snapshotDeep = true;
             } else if (arg == L"--scroll") {
                 snapshotMode = L"scroll";
+            } else if (arg == L"--update") {
+                snapshotMode = L"update";
             }
         }
         LocalFree(argv);

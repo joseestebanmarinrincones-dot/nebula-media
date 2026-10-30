@@ -32,7 +32,7 @@ Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 - Miniaturas de audio propias (archivo musical con nota y forma de onda) en lugar del icono genérico de Windows.
 - Ventana frameless con transparencia per-pixel, esquinas redondeadas, sombra y opacidad ajustable.
 - Botón pin / opción "Mantener siempre arriba" (`WS_EX_TOPMOST`).
-- **Actualizaciones automáticas** desde GitHub Releases: la app comprueba al abrir, descarga la nueva versión verificada por SHA-256 y la aplica al cerrar.
+- **Actualizaciones automáticas** desde GitHub Releases: la app comprueba al abrir, descarga y verifica la nueva versión por SHA-256, y muestra un botón **Actualizar** para que el usuario decida cuándo instalarla.
 - Instalador por usuario (sin UAC) generado con NSIS.
 
 ## Requisitos
@@ -68,9 +68,11 @@ El instalador se instala en `%LOCALAPPDATA%\Programs\Nebula Media`, con accesos 
 El release incluye `latest.txt` con la versión, la URL del ejecutable y su
 SHA-256. Al abrir la app, esta consulta
 `https://github.com/<owner>/<repo>/releases/latest/download/latest.txt`.
-Si hay una versión nueva, la descarga y verifica. Al cerrar la app, un script
-de PowerShell sustituye el `.exe` por la nueva versión. La próxima vez que se
-abra, ya está actualizada. Los amigos no tienen que recibir nada más.
+Si hay una versión nueva, la descarga y verifica. Cuando está lista aparece un
+botón **Actualizar** en la cabecera; el usuario decide cuándo. Al pulsarlo, la
+app se cierra, un script de PowerShell sustituye el `.exe` y la vuelve a abrir
+ya actualizada. Si no lo pulsa, no se instala nada. Los amigos no tienen que
+recibir archivos.
 
 No hay firma Authenticode: la verificación es HTTPS + SHA-256 contra el mismo
 release de GitHub. Si se mueve el repositorio, actualiza
@@ -78,30 +80,21 @@ release de GitHub. Si se mueve el repositorio, actualiza
 
 ### Publicar una versión nueva
 
-Con los cambios guardados en la carpeta del proyecto:
+GitHub Actions está activo en `.github/workflows/release.yml`. Con los cambios
+guardados, haz commit y push a `main`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File publish.ps1
+git add -A
+git commit -m "Mis cambios"
+git push
 ```
 
-El script incrementa la versión, compila, genera el instalador y el portable,
-sube el código a GitHub y crea el release. También deja el instalador nuevo en
-el Escritorio. Tus amigos con una versión anterior lo reciben automáticamente.
+El workflow incrementa el patch de `VERSION`, compila, genera el instalador y
+el portable, publica el release y guarda `VERSION` con `[skip ci]`. Los amigos
+con una versión anterior verán el botón **Actualizar** en su próxima apertura.
 
-### GitHub Actions opcional
-
-GitHub no permite subir workflows con el token OAuth actual porque le falta el
-permiso `workflow`. Para automatizarlo del todo en cada push, autoriza ese
-permiso una vez:
-
-```powershell
-gh auth refresh -h github.com -s workflow
-```
-
-Después copia `docs/release-workflow.yml` a `.github/workflows/release.yml` y
-haz commit. El workflow incrementa el patch de `VERSION`, compila, publica y
-vuelve a guardar `VERSION` con `[skip ci]`. No uses `publish.ps1` y el workflow
-a la vez para el mismo cambio.
+`publish.ps1` queda como respaldo manual: si GitHub Actions falla, se puede
+usar `publish.ps1 -Force`. No mezcles ambos métodos para el mismo cambio.
 
 ## Estructura
 
@@ -146,7 +139,7 @@ Se guarda en `HKCU\Software\NebulaMedia`:
 - El instalador y las actualizaciones no están firmados; SmartScreen puede avisar.
 - La app es x64.
 - El auto-reemplazo usa Windows PowerShell y requiere que el ejecutable esté en una carpeta escribible (la instalación por usuario lo está).
-- La actualización se aplica al cerrar; si el proceso se fuerza, se reintenta en el siguiente arranque.
+- La actualización solo se aplica al pulsar el botón Actualizar; si se cierra sin pulsarlo, no se instala y se vuelve a ofrecer en el siguiente arranque.
 
 ## Licencia
 

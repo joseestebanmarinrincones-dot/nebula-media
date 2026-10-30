@@ -361,6 +361,9 @@ void App::PrepareSnapshot(const std::wstring& mode, const std::wstring& argument
         RunDeepSearch(View());
     } else if (mode == L"scroll") {
         View().scroll = static_cast<int>(S(320));
+    } else if (mode == L"update") {
+        updateReady_ = true;
+        updateVersion_ = L"1.0.99";
     }
     Render();
 }
@@ -521,7 +524,7 @@ LRESULT App::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
                     updateVersion_ = result->version;
                     updatePath_ = result->path;
                     SetToast(L"Actualización " + updateVersion_ +
-                             L" lista · se instalará al cerrar.");
+                             L" lista · pulsa Actualizar.");
                 }
                 delete result;
                 Render();
@@ -631,10 +634,6 @@ LRESULT App::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
         case WM_CLOSE:
             if (editorOpen_ && !ConfirmCloseEditor()) return 0;
             SaveSettings();
-            if (updateReady_ && FileExists(updatePath_)) {
-                std::wstring error;
-                LaunchSelfUpdate(updatePath_, error);
-            }
             DestroyWindow(hwnd_);
             return 0;
         case WM_DESTROY:
@@ -703,6 +702,35 @@ void App::SetZoom(int zoomPercent) {
     View().scroll = 0;
     hoverCard_ = -1;
     Render();
+}
+
+void App::InstallUpdateNow() {
+    if (!updateReady_) return;
+    if (!FileExists(updatePath_)) {
+        updateReady_ = false;
+        SetToast(L"El archivo de actualización ya no está disponible.", true);
+        return;
+    }
+
+    const std::wstring message =
+        L"Actualización " + updateVersion_ +
+        L" descargada.\n\n¿Quieres instalarla ahora?\n"
+        L"La aplicación se cerrará y se reiniciará actualizada.";
+    if (MessageBoxW(hwnd_, message.c_str(), L"Nébula Media",
+                    MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON1) != IDYES) {
+        return;
+    }
+    if (editorOpen_ && !ConfirmCloseEditor()) return;
+
+    SaveSettings();
+    std::wstring error;
+    if (!LaunchSelfUpdate(updatePath_, error, true)) {
+        MessageBoxW(hwnd_,
+                    (L"No se pudo iniciar la actualización.\n\n" + error).c_str(),
+                    L"Nébula Media", MB_OK | MB_ICONWARNING);
+        return;
+    }
+    DestroyWindow(hwnd_);
 }
 
 void App::ToggleMaximize() {
@@ -1694,8 +1722,8 @@ void App::OnLButtonDown(POINT pt, bool ctrl, bool shift) {
     HitInfo hit = HitTest(pt);
 
     if (settingsOpen_) {
-        if (hit.id == zid::Settings) {
-            // Let the button handler toggle it.
+        if (hit.id == zid::Settings || hit.id == zid::UpdateButton) {
+            // Let the button handlers run.
         } else if (!InRect(layout.settingsPanel, static_cast<float>(pt.x),
                            static_cast<float>(pt.y))) {
             settingsOpen_ = false;
@@ -1970,6 +1998,9 @@ void App::OnClickZone(int id) {
             break;
         case zid::ZoomIn:
             SetZoom(zoom_ + 10);
+            break;
+        case zid::UpdateButton:
+            InstallUpdateNow();
             break;
         case zid::DriveDetect:
             DetectDrive(true);
@@ -2263,13 +2294,20 @@ Layout App::BuildLayout() {
     const float buttonSize = S(34);
     const float buttonGap = S(3);
     const float controlsW = buttonSize * 5 + buttonGap * 4;
-    float controlX = panelRight - S(20) - controlsW;
+    const float controlsStart = panelRight - S(20) - controlsW;
+    float controlX = controlsStart;
     const float controlY = layout.panel.Y + S(13);
     const int controlIds[5] = {zid::Settings, zid::Pin, zid::Min, zid::Max, zid::Close};
     for (int controlId : controlIds) {
         AddZone(layout, controlId,
                 Gdiplus::RectF(controlX, controlY, buttonSize, buttonSize));
         controlX += buttonSize + buttonGap;
+    }
+    if (updateReady_) {
+        const float updateW = S(104);
+        layout.updateButton = Gdiplus::RectF(
+            controlsStart - S(10) - updateW, layout.panel.Y + S(16), updateW, S(30));
+        AddZone(layout, zid::UpdateButton, layout.updateButton);
     }
 
     if (!editorOpen_) {

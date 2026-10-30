@@ -53,7 +53,8 @@ struct UpdateResult {
 };
 
 UpdateResult CheckForUpdatesBlocking(const std::wstring& currentVersion);
-bool LaunchSelfUpdate(const std::wstring& updatePath, std::wstring& error);
+bool LaunchSelfUpdate(const std::wstring& updatePath, std::wstring& error,
+                      bool restart = false);
 
 // ---------------------------------------------------------------- data model
 
@@ -283,6 +284,7 @@ enum : int {
     EditorFadeIn, EditorFadeOut, EditorVolDown, EditorVolUp,
     Waveform,
     ZoomOut, ZoomReset, ZoomIn,
+    UpdateButton,
     SidebarBase = 1000,
     CardBase = 2000
 };
@@ -321,6 +323,7 @@ struct Layout {
     Gdiplus::RectF search{};
     Gdiplus::RectF searchClear{};
     Gdiplus::RectF zoomGroup{};
+    Gdiplus::RectF updateButton{};
     Gdiplus::RectF sidebarTip{};
     bool showSidebarTip = false;
     Gdiplus::RectF scrollThumb{};
@@ -470,6 +473,7 @@ private:
     int ShadowMargin() const;
     float S(float value) const;
     void SetZoom(int zoomPercent);
+    void InstallUpdateNow();
     void StartUpdateCheck();
     void UpdateUninstallVersion();
 

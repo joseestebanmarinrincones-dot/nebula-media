@@ -1,11 +1,15 @@
 param(
-    [string]$Version = ''
+    [string]$Version = '',
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 if (-not (Test-Path 'VERSION')) { throw 'No se encontró VERSION.' }
+if ((Test-Path '.github\workflows\release.yml') -and -not $Force) {
+    throw 'GitHub Actions ya publica automáticamente al hacer push a main. Usa -Force solo como respaldo manual.'
+}
 if (Get-Process -Name NebulaMedia -ErrorAction SilentlyContinue) {
     throw 'Cierra Nebula Media antes de publicar una versión.'
 }
