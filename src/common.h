@@ -403,12 +403,14 @@ private:
     void SwitchTab(Tab tab);
 
     Layout BuildLayout();
+    const Layout& EnsureLayout();
     HitInfo HitTest(POINT client);
     const Gdiplus::RectF* ZoneRect(const Layout& layout, int id) const;
     bool IsClickable(int id) const;
 
-    void Render();
+    void Render(bool rebuildLayout = true);
     void EnsureBuffer(int width, int height);
+    void EnsureBackgroundCache(const Layout& layout);
 
     void DrawWindow(Gdiplus::Graphics& g, const Layout& layout);
     void DrawBackground(Gdiplus::Graphics& g, const Layout& layout);
@@ -538,6 +540,10 @@ private:
 
     std::unique_ptr<ThumbnailLoader> thumbs_;
     uint64_t lastThumbPaint_ = 0;
+    uint64_t lastScrollTick_ = 0;
+    bool scrollTimerActive_ = false;
+    Layout layoutCache_;
+    bool layoutCacheValid_ = false;
     std::wstring toast_;
     uint64_t toastUntil_ = 0;
     bool toastIsError_ = false;
@@ -556,6 +562,12 @@ private:
     int bufferW_ = 0;
     int bufferH_ = 0;
     int windowConstantAlpha_ = 255;
+    std::unique_ptr<Gdiplus::Bitmap> backgroundCache_;
+    int backgroundW_ = 0;
+    int backgroundH_ = 0;
+    int backgroundDpi_ = 0;
+    int backgroundOpacity_ = -1;
+    bool backgroundMaximized_ = false;
 
     // audio editor
     bool editorOpen_ = false;

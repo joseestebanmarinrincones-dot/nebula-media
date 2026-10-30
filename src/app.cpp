@@ -482,7 +482,7 @@ LRESULT App::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
             if (editorOpen_ || settingsOpen_) return 0;
             POINT pt{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
             ScreenToClient(hwnd_, &pt);
-            Layout layout = BuildLayout();
+            const Layout& layout = EnsureLayout();
             if (InRect(layout.content, static_cast<float>(pt.x),
                        static_cast<float>(pt.y))) {
                 if ((GET_KEYSTATE_WPARAM(wParam) & MK_CONTROL) != 0) {
@@ -510,9 +510,13 @@ LRESULT App::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
         case WM_APP_THUMB: {
             if (!ready_ || IsIconic(hwnd_)) return 0;
             const uint64_t now = GetTickCount64();
-            if (now - lastThumbPaint_ >= 40) {
+            if (now - lastScrollTick_ < 160) {
+                SetTimer(hwnd_, 5, 160, nullptr);
+                return 0;
+            }
+            if (now - lastThumbPaint_ >= 80) {
                 lastThumbPaint_ = now;
-                Render();
+                Render(false);
             }
             return 0;
         }
@@ -641,6 +645,8 @@ LRESULT App::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
             KillTimer(hwnd_, 2);
             KillTimer(hwnd_, 3);
             KillTimer(hwnd_, 4);
+            KillTimer(hwnd_, 5);
+            KillTimer(hwnd_, 6);
             if (thumbs_) thumbs_->Stop();
             if (player_) player_->Close();
             PostQuitMessage(0);
@@ -661,7 +667,7 @@ void App::SetPin(bool pin) {
     pin_ = pin;
     RegWriteDword(L"Pin", pin_ ? 1 : 0);
     ApplyTopmost();
-    Render();
+    Render(false);
 }
 
 void App::SaveWindowPlacement() {
@@ -1157,7 +1163,7 @@ void App::OpenDriveWeb() {
 
 void App::SetOpacity(int alpha) {
     opacity_ = std::max(100, std::min(255, alpha));
-    Render();
+    Render(false);
 }
 
 void App::SetToast(const std::wstring& text, bool error) {
@@ -1214,7 +1220,7 @@ void App::SelectCard(int index, bool ctrl, bool shift) {
                 selection_.insert(view.items[visible[i]].path);
             }
             hoverCard_ = index;
-            Render();
+            Render(false);
             return;
         }
     }
@@ -1232,7 +1238,7 @@ void App::SelectCard(int index, bool ctrl, bool shift) {
         anchorPath_ = item.path;
     }
     hoverCard_ = index;
-    Render();
+    Render(false);
 }
 
 void App::OpenItem(const MediaItem& item) {
@@ -1404,7 +1410,7 @@ void App::StartDragSelection() {
     BeginFileDrag(hwnd_, paths);
     DragAcceptFiles(hwnd_, TRUE);
     SetWindowLongPtrW(hwnd_, GWL_EXSTYLE, savedStyle);
-    Render();
+    Render(false);
 }
 
 void App::SearchChanged(bool immediateDeep) {
@@ -1630,7 +1636,7 @@ void App::OnTimer(UINT_PTR id) {
             toast_.clear();
             needsPaint = true;
         }
-        if (needsPaint) Render();
+        if (needsPaint) Render(false);
     } else if (id == 2) {
         UpdateAudioPlayback();
     } else if (id == 3) {
@@ -1638,6 +1644,13 @@ void App::OnTimer(UINT_PTR id) {
     } else if (id == 4) {
         KillTimer(hwnd_, 4);
         StartUpdateCheck();
+    } else if (id == 5) {
+        KillTimer(hwnd_, 5);
+        Render(false);
+    } else if (id == 6) {
+        KillTimer(hwnd_, 6);
+        scrollTimerActive_ = false;
+        Render();
     }
 }
 
@@ -1675,7 +1688,7 @@ void App::OnMouseMove(POINT pt, bool leftDown) {
     }
 
     if (draggingOpacity_) {
-        Layout layout = BuildLayout();
+        const Layout& layout = EnsureLayout();
         float trackX = layout.opacityTrack.X;
         float trackW = std::max(1.0f, layout.opacityTrack.Width);
         float t = (static_cast<float>(pt.x) - trackX) / trackW;
@@ -1697,12 +1710,12 @@ void App::OnMouseMove(POINT pt, bool leftDown) {
     if (hit.id != hoverId_ || hit.card != hoverCard_) {
         hoverId_ = hit.id;
         hoverCard_ = hit.card;
-        Render();
+        Render(false);
     }
 }
 
 void App::OnLButtonDown(POINT pt, bool ctrl, bool shift) {
-    Layout layout = BuildLayout();
+    const Layout& layout = EnsureLayout();
     HitInfo hit = HitTest(pt);
 
     if (settingsOpen_) {
@@ -1844,7 +1857,7 @@ void App::OnLButtonUp(POINT pt) {
 }
 
 void App::OnLButtonDblClk(POINT pt) {
-    Layout layout = BuildLayout();
+    const Layout& layout = EnsureLayout();
     HitInfo hit = HitTest(pt);
     if (settingsOpen_) return;
     if (hit.card >= 0) {
@@ -1871,7 +1884,7 @@ void App::OnLButtonDblClk(POINT pt) {
 
 void App::OnMouseWheel(int delta) {
     if (editorOpen_) return;
-    Layout layout = BuildLayout();
+    const Layout& layout = EnsureLayout();
     float maxScroll = std::max(0.0f, layout.contentHeight - layout.grid.Height);
     if (maxScroll <= 0.0f) return;
     ViewState& view = View();
@@ -1879,12 +1892,19 @@ void App::OnMouseWheel(int delta) {
     float amount = static_cast<float>(view.scroll) - steps * S(88);
     amount = std::max(0.0f, std::min(maxScroll, amount));
     view.scroll = static_cast<int>(amount + 0.5f);
-    Render();
+    hoverCard_ = -1;
+    lastScrollTick_ = GetTickCount64();
+    layoutCacheValid_ = false;
+    if (thumbs_) thumbs_->ClearQueue();
+    if (!scrollTimerActive_) {
+        scrollTimerActive_ = true;
+        SetTimer(hwnd_, 6, 15, nullptr);
+    }
 }
 
 void App::OnClickZone(int id) {
     if (id >= zid::SidebarBase && id < zid::CardBase) {
-        Layout layout = BuildLayout();
+        const Layout& layout = EnsureLayout();
         int index = id - zid::SidebarBase;
         if (index >= 0 && index < static_cast<int>(layout.side.size())) {
             const SideEntry& entry = layout.side[index];
@@ -2110,7 +2130,7 @@ void App::OnDroppedFiles(HDROP drop) {
 
 HitInfo App::HitTest(POINT pt) {
     HitInfo hit{};
-    Layout layout = BuildLayout();
+    const Layout& layout = EnsureLayout();
     const float x = static_cast<float>(pt.x);
     const float y = static_cast<float>(pt.y);
 
@@ -2418,12 +2438,30 @@ Layout App::BuildLayout() {
             view.scroll = static_cast<int>(std::max(
                 0.0f, std::min(maxScroll, static_cast<float>(view.scroll))));
             const float originY = layout.grid.Y + S(2) - static_cast<float>(view.scroll);
-            for (int i = 0; i < static_cast<int>(layout.visible.size()); ++i) {
-                const int col = i % columns;
-                const int row = i / columns;
-                Gdiplus::RectF rect(layout.grid.X + col * (cardW + gap),
-                                    originY + row * (cardH + gap), cardW, cardH);
-                layout.cards.push_back(CardHit{layout.visible[i], rect});
+            const float rowAdvance = cardH + gap;
+            int firstRow = 0;
+            int lastRow = -1;
+            if (rows > 0) {
+                firstRow = std::clamp(
+                    static_cast<int>(static_cast<float>(view.scroll) / rowAdvance) - 1,
+                    0, rows - 1);
+                lastRow = std::clamp(
+                    static_cast<int>((static_cast<float>(view.scroll) +
+                                      layout.grid.Height) /
+                                     rowAdvance) +
+                        1,
+                    firstRow, rows - 1);
+            }
+            // Only materialise the rows that intersect the viewport. This
+            // keeps scrolling with thousands of items cheap.
+            for (int row = firstRow; row <= lastRow; ++row) {
+                for (int col = 0; col < columns; ++col) {
+                    const int index = row * columns + col;
+                    if (index >= static_cast<int>(layout.visible.size())) break;
+                    Gdiplus::RectF rect(layout.grid.X + col * (cardW + gap),
+                                        originY + row * rowAdvance, cardW, cardH);
+                    layout.cards.push_back(CardHit{layout.visible[index], rect});
+                }
             }
             if (maxScroll > 0.0f) {
                 layout.showScrollThumb = true;
@@ -2511,6 +2549,43 @@ Layout App::BuildLayout() {
     return layout;
 }
 
+void App::EnsureBackgroundCache(const Layout& layout) {
+    if (!hwnd_) return;
+    RECT client{};
+    GetClientRect(hwnd_, &client);
+    const int width = client.right - client.left;
+    const int height = client.bottom - client.top;
+    if (width <= 0 || height <= 0) return;
+    if (backgroundCache_ && width == backgroundW_ && height == backgroundH_ &&
+        dpi_ == backgroundDpi_ && opacity_ == backgroundOpacity_ &&
+        maximized_ == backgroundMaximized_) {
+        return;
+    }
+
+    try {
+        auto bitmap = std::make_unique<Gdiplus::Bitmap>(
+            width, height, PixelFormat32bppPARGB);
+        if (bitmap->GetLastStatus() != Gdiplus::Ok) {
+            backgroundCache_.reset();
+            return;
+        }
+        Gdiplus::Graphics graphics(bitmap.get());
+        graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+        graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+        graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+        DrawBackground(graphics, layout);
+        backgroundCache_ = std::move(bitmap);
+        backgroundW_ = width;
+        backgroundH_ = height;
+        backgroundDpi_ = dpi_;
+        backgroundOpacity_ = opacity_;
+        backgroundMaximized_ = maximized_;
+    } catch (const std::bad_alloc&) {
+        backgroundCache_.reset();
+    }
+}
+
 void App::EnsureBuffer(int width, int height) {
     if (width <= 0 || height <= 0) return;
     if (width == bufferW_ && height == bufferH_ && memDC_ && dib_) return;
@@ -2548,7 +2623,15 @@ void App::EnsureBuffer(int width, int height) {
     }
 }
 
-void App::Render() {
+const Layout& App::EnsureLayout() {
+    if (!layoutCacheValid_) {
+        layoutCache_ = BuildLayout();
+        layoutCacheValid_ = true;
+    }
+    return layoutCache_;
+}
+
+void App::Render(bool rebuildLayout) {
     if (!ready_ || !hwnd_ || IsIconic(hwnd_)) return;
     RECT client{};
     GetClientRect(hwnd_, &client);
@@ -2567,7 +2650,11 @@ void App::Render() {
     graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
     graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
 
-    Layout layout = BuildLayout();
+    if (rebuildLayout || !layoutCacheValid_) {
+        layoutCache_ = BuildLayout();
+        layoutCacheValid_ = true;
+    }
+    Layout& layout = layoutCache_;
     DrawWindow(graphics, layout);
 
     HDC screen = GetDC(nullptr);
@@ -2852,7 +2939,7 @@ void App::BeginAudioPlayback() {
     playEnd_ = end;
     playhead_ = start;
     SetTimer(hwnd_, 2, 50, nullptr);
-    Render();
+    Render(false);
 }
 
 void App::PauseAudioPlayback() {
@@ -2860,7 +2947,7 @@ void App::PauseAudioPlayback() {
     playhead_ = std::min(player_->PositionFrames(), ClipFrames(audio_));
     player_->Pause();
     KillTimer(hwnd_, 2);
-    Render();
+    Render(false);
 }
 
 void App::ResumeAudioPlayback() {
@@ -2870,7 +2957,7 @@ void App::ResumeAudioPlayback() {
     }
     player_->Resume();
     SetTimer(hwnd_, 2, 50, nullptr);
-    Render();
+    Render(false);
 }
 
 void App::StopAudioPlayback(bool resetPlayhead) {
@@ -2878,7 +2965,7 @@ void App::StopAudioPlayback(bool resetPlayhead) {
     if (player_) player_->Stop();
     if (resetPlayhead) {
         playhead_ = HasSelection() ? selectionStart_ : 0;
-        Render();
+        Render(false);
     }
 }
 
@@ -2889,11 +2976,11 @@ void App::UpdateAudioPlayback() {
         player_->Stop();
         KillTimer(hwnd_, 2);
         playhead_ = playEnd_;
-        Render();
+        Render(false);
         return;
     }
     playhead_ = std::max<int64_t>(0, std::min(position, ClipFrames(audio_)));
-    Render();
+    Render(false);
 }
 
 void App::SeekToFrame(int64_t frame, bool extendSelection) {
@@ -2923,7 +3010,7 @@ void App::FinishWaveDrag(POINT pt) {
 }
 
 int64_t App::FrameAtPoint(float x) {
-    Layout layout = BuildLayout();
+    const Layout& layout = EnsureLayout();
     const Gdiplus::RectF& plot = layout.editorPlot;
     const int64_t frames = ClipFrames(audio_);
     if (frames <= 0 || plot.Width <= 1.0f) return 0;

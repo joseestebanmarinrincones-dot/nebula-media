@@ -341,9 +341,11 @@ bool ParseFeed(const std::wstring& text, std::wstring& version, std::wstring& ur
 
 UpdateResult CheckForUpdatesBlocking(const std::wstring& currentVersion) {
     UpdateResult result;
-    const std::wstring feedUrl = std::wstring(L"https://github.com/") +
-                                 NEBULA_REPO_OWNER_W + L"/" + NEBULA_REPO_NAME_W +
-                                 L"/releases/latest/download/latest.txt";
+    std::wstring feedUrl = std::wstring(L"https://github.com/") +
+                           NEBULA_REPO_OWNER_W + L"/" + NEBULA_REPO_NAME_W +
+                           L"/releases/latest/download/latest.txt";
+    // Avoid a stale GitHub CDN entry after a release is replaced or recreated.
+    feedUrl += L"?t=" + std::to_wstring(GetTickCount64());
 
     std::vector<BYTE> feedBytes;
     std::wstring error;

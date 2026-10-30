@@ -270,7 +270,12 @@ void ShutdownPaintResources() {
 // ------------------------------------------------------------------ root paint
 
 void App::DrawWindow(Graphics& g, const Layout& layout) {
-    DrawBackground(g, layout);
+    EnsureBackgroundCache(layout);
+    if (backgroundCache_) {
+        g.DrawImage(backgroundCache_.get(), 0, 0);
+    } else {
+        DrawBackground(g, layout);
+    }
     DrawHeader(g, layout);
 
     if (editorOpen_) {
