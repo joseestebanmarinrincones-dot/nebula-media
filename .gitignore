@@ -1,0 +1,10 @@
+build/
+dist/
+tools/nsis/
+tools/git/
+tools/*.zip
+*.o
+*.obj
+*.user
+.vs/
+.idea/

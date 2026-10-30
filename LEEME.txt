@@ -1,0 +1,111 @@
+NEBULA MEDIA
+Gestor de vídeos, imágenes, audio y programas + editor de audio
+========================================================================
+
+QUÉ ES
+------
+Nebula Media es una aplicación nativa para Windows que reúne tus archivos
+multimedia en una sola ventana flotante:
+
+  - Biblioteca con miniaturas de imágenes, vídeos, audio y programas.
+  - Buscador instantáneo y búsqueda dentro de subcarpetas.
+  - Arrastra archivos FUERA de la app y suéltalos en Premiere, DaVinci
+    Resolve, CapCut, After Effects o cualquier programa que acepte archivos.
+  - Pestaña de Google Drive para explorar tu unidad y arrastrar sus archivos.
+  - Editor de audio sencillo: recortar, eliminar, fundidos, volumen, deshacer
+    y guardar en WAV.
+  - Ventana siempre visible (opcional) con fondo transparente ajustable.
+
+INSTALACIÓN
+-----------
+1. Ejecuta "NebulaMedia-Setup-x.y.z.exe" (la versión más reciente).
+2. No necesita permisos de administrador: se instala en tu perfil.
+3. Al terminar se abrirá Nebula Media y tendrás accesos en el menú Inicio
+   y en el Escritorio.
+
+ACTUALIZACIONES AUTOMÁTICAS
+---------------------------
+  - Solo hay que instalar una vez. Al abrir Nebula Media, la app consulta
+    las publicaciones de GitHub y descarga la última versión disponible.
+    La actualización se aplica al cerrar el programa; la próxima vez que lo
+    abras ya estará actualizado.
+  - Requiere conexión a Internet. La app no envía datos personales: solo
+    consulta el archivo público de versiones y descarga el ejecutable nuevo.
+  - Las actualizaciones se validan con SHA-256 contra el archivo publicado en
+    GitHub. No hay firma digital de código, igual que el instalador inicial.
+  - Repositorio público:
+    https://github.com/joseestebanmarinrincones-dot/nebula-media
+  - Si no hay conexión, la app sigue funcionando con la versión instalada.
+
+REQUISITOS
+----------
+  - Windows 10 u 11 de 64 bits.
+  - Para Google Drive: Google Drive para escritorio instalado y con sesión
+    iniciada. La app usa la carpeta local "Mi unidad" (no pide contraseñas
+    ni guarda credenciales de Google).
+  - El editor de audio usa los códecs de Windows (Media Foundation). Los
+    formatos más habituales (MP3, WAV, M4A, FLAC, WMA...) funcionan si el
+    sistema los puede reproducir. La exportación es siempre WAV PCM 16 bits.
+  - El editor trabaja internamente a 48 kHz estéreo 16 bits, así que los WAV
+    guardados salen a esa frecuencia.
+  - Límite del editor: primeros 10 minutos de audio para mantenerlo ligero.
+
+CÓMO USARLA
+-----------
+  - Haz clic en una carpeta de la barra lateral o pulsa "Abrir carpeta".
+  - Escribe directamente para buscar en la carpeta actual.
+  - Activa "Subcarpetas" para buscar en todo el árbol de la carpeta.
+  - Arrastra una miniatura a tu editor de vídeo. También puedes seleccionar
+    varias con Ctrl o Mayús y arrastrarlas todas. Mientras arrastras hacia
+    fuera, la ventana se aparta y se vuelve translúcida para que puedas soltar
+    el archivo sobre el editor aunque estuviera debajo.
+  - Doble clic en una carpeta para entrar. Doble clic en un audio abre el
+    editor. Doble clic en otros archivos los abre con su aplicación habitual.
+  - Clic derecho: abrir, mostrar en el Explorador, copiar ruta, copiar a
+    Google Drive, enviar a la papelera o ver propiedades.
+  - Pestaña "Google Drive": pulsa "Detectar automáticamente" o elige la
+    carpeta de Drive. También puedes arrastrar una carpeta de Drive a la
+    ventana. Los archivos que solo están en la nube se descargan cuando los
+    abres o los arrastras a otro programa.
+  - Engranaje (arriba a la derecha): transparencia del fondo y botón para
+    mantener la ventana sobre los demás programas (también el icono de pin).
+
+EDITOR DE AUDIO
+---------------
+  - Arrastra sobre la onda para seleccionar un fragmento.
+  - Reproducir / pausar con el botón o la barra espaciadora.
+  - Recortar deja solo la selección; Eliminar la quita.
+  - Fundido de entrada/salida y volumen se aplican a la selección o a todo
+    el audio si no hay selección.
+  - Deshacer (Ctrl+Z) recupera el último cambio.
+  - Guardar WAV (Ctrl+S) crea un archivo nuevo; no sobrescribe el original
+    salvo que tú lo elijas.
+  - Atajos: Espacio, Ctrl+S, Ctrl+Z, Esc.
+
+SOBRE "NIVEL KERNEL"
+--------------------
+Una ventana con arrastrar y soltar y un editor de audio no se pueden hacer
+en modo kernel: un driver no puede crear ventanas ni usar OLE, y cualquier
+fallo del driver provocaría un pantallazo azul. Nebula Media está escrita
+en C++ nativo Win32/COM y usa las APIs de más bajo nivel seguras para esto
+(OLE drag & drop, Shell, GDI+ y Media Foundation). Es una app nativa, sin
+Electron ni runtime externo, pero en modo usuario a propósito.
+
+NOTAS
+-----
+  - El instalador y las actualizaciones no están firmados digitalmente.
+    Windows SmartScreen puede mostrar un aviso la primera vez: "Más
+    información" > "Ejecutar de todas formas". Es normal en programas
+    independientes sin certificado.
+  - Windows bloquea arrastrar archivos entre programas con distinto nivel de
+    permisos. Si tu editor de vídeo se ejecuta como administrador, abre
+    Nebula Media también como administrador para poder arrastrar.
+  - La app solo se conecta a GitHub para comprobar y descargar
+    actualizaciones; no envía datos personales ni métricas. También abre
+    drive.google.com en tu navegador si pulsas el botón correspondiente.
+  - La configuración se guarda en HKCU\Software\NebulaMedia. Al desinstalar
+    se conserva por si vuelves a instalarla; puedes borrarla con regedit.
+  - Desinstalar: Configuración > Aplicaciones > Nebula Media, o el acceso
+    "Desinstalar Nebula Media" del menú Inicio.
+
+Hecho con C++ nativo para Windows.
