@@ -41,10 +41,67 @@ public:
 std::once_flag g_mfOnce;
 bool g_mfOk = false;
 
+// Media Foundation is loaded on demand so the player libraries never delay
+// the normal launch of the media library.
+using MfStartupFn = HRESULT(STDMETHODCALLTYPE*)(ULONG, ULONG);
+using MfCreateMediaTypeFn = HRESULT(STDMETHODCALLTYPE*)(IMFMediaType**);
+using MfCreateSourceReaderFn = HRESULT(STDMETHODCALLTYPE*)(LPCWSTR, IMFAttributes*,
+                                                           IMFSourceReader**);
+
+MfCreateMediaTypeFn g_mfCreateMediaType = nullptr;
+MfCreateSourceReaderFn g_mfCreateSourceReader = nullptr;
+
+const GUID kMediaTypeAudio = {0x73647561,
+                              0x0000,
+                              0x0010,
+                              {0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}};
+const GUID kAudioFormatPcm = {0x00000001,
+                              0x0000,
+                              0x0010,
+                              {0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}};
+const GUID kAudioFormatFloat = {0x00000003,
+                                0x0000,
+                                0x0010,
+                                {0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}};
+const GUID kMtMajorType = {0x48EBA18E,
+                           0xF8C9,
+                           0x4687,
+                           {0xBF, 0x11, 0x0A, 0x74, 0xC9, 0xF9, 0x6A, 0x8F}};
+const GUID kMtSubtype = {0xF7E34C9A,
+                         0x42E8,
+                         0x4714,
+                         {0xB7, 0x4B, 0xCB, 0x29, 0xD7, 0x2C, 0x35, 0xE5}};
+const GUID kMtAudioChannels = {0x37E48BF5,
+                               0x645E,
+                               0x4C5B,
+                               {0x89, 0xDE, 0xAD, 0xA9, 0xE2, 0x9B, 0x69, 0x6A}};
+const GUID kMtAudioRate = {0x5FAEEAE7,
+                           0x0290,
+                           0x4C31,
+                           {0x9E, 0x8A, 0xC5, 0x34, 0xF6, 0x8D, 0x9D, 0xBA}};
+const GUID kMtAudioBits = {0xF2DEB57F,
+                           0x40FA,
+                           0x4764,
+                           {0xAA, 0x33, 0xED, 0x4F, 0x2D, 0x1F, 0xF6, 0x69}};
+
 bool EnsureMediaFoundation(std::wstring& error) {
     std::call_once(g_mfOnce, []() {
-        HRESULT hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
-        g_mfOk = SUCCEEDED(hr);
+        HMODULE plat = LoadLibraryW(L"mfplat.dll");
+        HMODULE readwrite = LoadLibraryW(L"mfreadwrite.dll");
+        if (!plat || !readwrite) return;
+
+        auto startup =
+            reinterpret_cast<MfStartupFn>(GetProcAddress(plat, "MFStartup"));
+        auto createType = reinterpret_cast<MfCreateMediaTypeFn>(
+            GetProcAddress(plat, "MFCreateMediaType"));
+        auto createReader = reinterpret_cast<MfCreateSourceReaderFn>(
+            GetProcAddress(readwrite, "MFCreateSourceReaderFromURL"));
+        if (!startup || !createType || !createReader) return;
+        if (FAILED(startup(MF_VERSION, MFSTARTUP_FULL))) return;
+
+        g_mfCreateMediaType = createType;
+        g_mfCreateSourceReader = createReader;
+        g_mfOk = true;
     });
     if (!g_mfOk) {
         error = L"No se pudo iniciar Media Foundation.";
@@ -132,7 +189,8 @@ bool LoadAudioFile(const std::wstring& path, AudioClip& out, std::wstring& error
     if (!EnsureMediaFoundation(error)) return false;
 
     Com<IMFSourceReader> reader;
-    HRESULT hr = MFCreateSourceReaderFromURL(path.c_str(), nullptr, &reader);
+    HRESULT hr =
+        g_mfCreateSourceReader(path.c_str(), nullptr, &reader);
     if (FAILED(hr) || !reader) {
         error = L"No se pudo abrir el audio con Media Foundation. " + FormatHResult(hr);
         return false;
@@ -144,21 +202,21 @@ bool LoadAudioFile(const std::wstring& path, AudioClip& out, std::wstring& error
     bool configured = false;
     {
         Com<IMFMediaType> type;
-        if (SUCCEEDED(MFCreateMediaType(&type))) {
-            type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-            type->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
-            type->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-            type->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2);
-            type->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 48000);
+        if (SUCCEEDED(g_mfCreateMediaType(&type))) {
+            type->SetGUID(kMtMajorType, kMediaTypeAudio);
+            type->SetGUID(kMtSubtype, kAudioFormatPcm);
+            type->SetUINT32(kMtAudioBits, 16);
+            type->SetUINT32(kMtAudioChannels, 2);
+            type->SetUINT32(kMtAudioRate, 48000);
             configured = SUCCEEDED(reader->SetCurrentMediaType(
                 MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, type.get()));
         }
     }
     if (!configured) {
         Com<IMFMediaType> type;
-        if (SUCCEEDED(MFCreateMediaType(&type))) {
-            type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-            type->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM);
+        if (SUCCEEDED(g_mfCreateMediaType(&type))) {
+            type->SetGUID(kMtMajorType, kMediaTypeAudio);
+            type->SetGUID(kMtSubtype, kAudioFormatPcm);
             configured = SUCCEEDED(reader->SetCurrentMediaType(
                 MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, type.get()));
         }
@@ -171,16 +229,16 @@ bool LoadAudioFile(const std::wstring& path, AudioClip& out, std::wstring& error
     UINT32 channels = 2;
     UINT32 rate = 48000;
     UINT32 bits = 16;
-    GUID subtype = MFAudioFormat_PCM;
+    GUID subtype = kAudioFormatPcm;
     {
         Com<IMFMediaType> current;
         if (SUCCEEDED(reader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM,
                                                   &current)) &&
             current) {
-            current->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &channels);
-            current->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &rate);
-            current->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &bits);
-            current->GetGUID(MF_MT_SUBTYPE, &subtype);
+            current->GetUINT32(kMtAudioChannels, &channels);
+            current->GetUINT32(kMtAudioRate, &rate);
+            current->GetUINT32(kMtAudioBits, &bits);
+            current->GetGUID(kMtSubtype, &subtype);
         }
     }
 
@@ -188,7 +246,7 @@ bool LoadAudioFile(const std::wstring& path, AudioClip& out, std::wstring& error
     if (rate < 4000 || rate > 384000) rate = 48000;
     if (bits != 8 && bits != 16 && bits != 24 && bits != 32) bits = 16;
 
-    const bool isFloat = subtype == MFAudioFormat_Float;
+    const bool isFloat = subtype == kAudioFormatFloat;
     if (bits == 8 || (bits == 32 && !isFloat)) {
         error = L"Profundidad de audio no compatible.";
         return false;

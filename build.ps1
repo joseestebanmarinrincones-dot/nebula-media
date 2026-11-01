@@ -74,8 +74,7 @@ $objects = $sources | ForEach-Object { "build\$_.o" }
 $objects += 'build\res.o'
 $libraries = @(
     '-lole32', '-loleaut32', '-luuid', '-lshell32', '-lgdiplus', '-lshlwapi',
-    '-lcomctl32', '-ladvapi32', '-lwinmm', '-lmfplat', '-lmfreadwrite',
-    '-lmfuuid', '-lmf', '-lwinhttp', '-lbcrypt', '-luser32', '-lgdi32',
+    '-lcomctl32', '-ladvapi32', '-lwinmm', '-lwinhttp', '-lbcrypt', '-luser32', '-lgdi32',
     '-lkernel32'
 )
 
