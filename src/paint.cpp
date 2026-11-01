@@ -908,6 +908,9 @@ void App::DrawGrid(Graphics& g, const Layout& layout) {
             subtitle = view.recursive
                            ? L"No hay coincidencias en esta carpeta ni en sus subcarpetas."
                            : L"Prueba con otro término o activa Subcarpetas.";
+        } else if (!startupScanDone_) {
+            title = L"Cargando…";
+            subtitle = L"Preparando tu biblioteca.";
         } else if (layout.showConnect) {
             title = L"Google Drive";
             subtitle = L"Conecta tu unidad para ver tus archivos aquí.";

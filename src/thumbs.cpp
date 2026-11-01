@@ -8,6 +8,179 @@ namespace nebula {
 namespace {
 
 constexpr size_t kCacheLimit = 180;
+constexpr size_t kDiskCacheMaxFiles = 400;
+constexpr size_t kDiskCacheTargetFiles = 300;
+
+uint64_t DiskKey(const std::wstring& path, uint64_t size, uint64_t writeTime) {
+    uint64_t hash = 1469598103934665603ull;
+    auto mix = [&hash](uint64_t value) {
+        for (int i = 0; i < 8; ++i) {
+            hash ^= (value >> (i * 8)) & 0xFF;
+            hash *= 1099511628211ull;
+        }
+    };
+    for (wchar_t c : path) {
+        hash ^= static_cast<uint16_t>(c);
+        hash *= 1099511628211ull;
+    }
+    mix(size);
+    mix(writeTime);
+    mix(1);  // Cache format version.
+    return hash;
+}
+
+std::wstring CacheDirectory() {
+    static const std::wstring dir = [] {
+        const std::wstring base = KnownFolderPath(FOLDERID_LocalAppData);
+        if (base.empty()) return std::wstring();
+        const std::wstring path =
+            JoinPath(JoinPath(base, L"Nebula Media"), L"ThumbCache");
+        if (!EnsureDirectory(path)) return std::wstring();
+        return path;
+    }();
+    return dir;
+}
+
+std::wstring DiskCacheFile(const std::wstring& path,
+                           const WIN32_FILE_ATTRIBUTE_DATA& info) {
+    const std::wstring dir = CacheDirectory();
+    if (dir.empty()) return std::wstring();
+    const uint64_t size =
+        (static_cast<uint64_t>(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
+    const uint64_t stamp =
+        (static_cast<uint64_t>(info.ftLastWriteTime.dwHighDateTime) << 32) |
+        info.ftLastWriteTime.dwLowDateTime;
+    wchar_t name[40]{};
+    swprintf(name, 40, L"%016llx.png",
+             static_cast<unsigned long long>(DiskKey(path, size, stamp)));
+    return JoinPath(dir, name);
+}
+
+std::mutex g_diskCacheMutex;
+size_t g_diskCacheCount = 0;
+
+size_t PruneDiskCacheLocked() {
+    const std::wstring dir = CacheDirectory();
+    if (dir.empty()) return 0;
+
+    struct Entry {
+        std::wstring path;
+        FILETIME time{};
+    };
+    std::vector<Entry> entries;
+    WIN32_FIND_DATAW data{};
+    HANDLE find = FindFirstFileW(JoinPath(dir, L"*.png").c_str(), &data);
+    if (find != INVALID_HANDLE_VALUE) {
+        do {
+            if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) continue;
+            Entry entry;
+            entry.path = JoinPath(dir, data.cFileName);
+            entry.time = data.ftLastWriteTime;
+            entries.push_back(std::move(entry));
+        } while (FindNextFileW(find, &data));
+        FindClose(find);
+    }
+
+    // Remove leftovers from an interrupted save.
+    HANDLE temp = FindFirstFileW(JoinPath(dir, L"*.tmp").c_str(), &data);
+    if (temp != INVALID_HANDLE_VALUE) {
+        do {
+            if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                DeleteFileW(JoinPath(dir, data.cFileName).c_str());
+            }
+        } while (FindNextFileW(temp, &data));
+        FindClose(temp);
+    }
+
+    if (entries.size() <= kDiskCacheMaxFiles) return entries.size();
+
+    std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
+        return CompareFileTime(&a.time, &b.time) < 0;
+    });
+    const size_t remove =
+        entries.size() > kDiskCacheTargetFiles ? entries.size() - kDiskCacheTargetFiles : 0;
+    for (size_t i = 0; i < remove; ++i) {
+        DeleteFileW(entries[i].path.c_str());
+    }
+    return entries.size() - remove;
+}
+
+void EnsureDiskCachePruned() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        std::lock_guard<std::mutex> lock(g_diskCacheMutex);
+        g_diskCacheCount = PruneDiskCacheLocked();
+    });
+}
+
+void NoteSavedThumb() {
+    std::lock_guard<std::mutex> lock(g_diskCacheMutex);
+    ++g_diskCacheCount;
+    if (g_diskCacheCount > kDiskCacheMaxFiles) {
+        g_diskCacheCount = PruneDiskCacheLocked();
+    }
+}
+
+std::shared_ptr<Gdiplus::Bitmap> LoadDiskThumb(const std::wstring& file) {
+    Gdiplus::Bitmap disk(file.c_str(), FALSE);
+    if (disk.GetLastStatus() != Gdiplus::Ok) return nullptr;
+    const int width = static_cast<int>(disk.GetWidth());
+    const int height = static_cast<int>(disk.GetHeight());
+    if (width <= 0 || height <= 0) return nullptr;
+    Gdiplus::Bitmap* clone =
+        disk.Clone(0, 0, width, height, PixelFormat32bppPARGB);
+    if (!clone || clone->GetLastStatus() != Gdiplus::Ok) {
+        delete clone;
+        return nullptr;
+    }
+    return std::shared_ptr<Gdiplus::Bitmap>(clone);
+}
+
+const CLSID* PngEncoder() {
+    static std::once_flag once;
+    static CLSID clsid{};
+    static bool found = false;
+    std::call_once(once, [] {
+        UINT count = 0;
+        UINT bytes = 0;
+        if (Gdiplus::GetImageEncodersSize(&count, &bytes) != Gdiplus::Ok ||
+            bytes == 0) {
+            return;
+        }
+        std::vector<BYTE> storage(bytes);
+        auto* encoders =
+            reinterpret_cast<Gdiplus::ImageCodecInfo*>(storage.data());
+        if (Gdiplus::GetImageEncoders(count, bytes, encoders) != Gdiplus::Ok) {
+            return;
+        }
+        for (UINT i = 0; i < count; ++i) {
+            if (wcscmp(encoders[i].MimeType, L"image/png") == 0) {
+                clsid = encoders[i].Clsid;
+                found = true;
+                break;
+            }
+        }
+    });
+    return found ? &clsid : nullptr;
+}
+
+void SaveDiskThumb(const std::wstring& file, Gdiplus::Bitmap* bitmap) {
+    if (!bitmap) return;
+    const CLSID* encoder = PngEncoder();
+    if (!encoder) return;
+
+    const std::wstring temp = file + L".tmp";
+    DeleteFileW(temp.c_str());
+    if (bitmap->Save(temp.c_str(), encoder, nullptr) != Gdiplus::Ok) {
+        DeleteFileW(temp.c_str());
+        return;
+    }
+    if (!MoveFileExW(temp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+        DeleteFileW(temp.c_str());
+        return;
+    }
+    NoteSavedThumb();
+}
 
 std::shared_ptr<Gdiplus::Bitmap> BitmapFromHBitmap(HBITMAP handle) {
     if (!handle) return nullptr;
@@ -156,6 +329,7 @@ std::shared_ptr<Gdiplus::Bitmap> ThumbnailLoader::RenderThumb(const std::wstring
 void ThumbnailLoader::Worker() {
     HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     (void)com;
+    EnsureDiskCachePruned();
 
     for (;;) {
         std::wstring path;
@@ -167,7 +341,18 @@ void ThumbnailLoader::Worker() {
             queue_.pop_front();
         }
 
-        auto bitmap = RenderThumb(path);
+        std::shared_ptr<Gdiplus::Bitmap> bitmap;
+        std::wstring cacheFile;
+        WIN32_FILE_ATTRIBUTE_DATA info{};
+        if (GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &info) &&
+            (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            cacheFile = DiskCacheFile(path, info);
+            if (!cacheFile.empty()) bitmap = LoadDiskThumb(cacheFile);
+        }
+        if (!bitmap) {
+            bitmap = RenderThumb(path);
+            if (bitmap && !cacheFile.empty()) SaveDiskThumb(cacheFile, bitmap.get());
+        }
 
         {
             std::lock_guard<std::mutex> lock(mutex_);

@@ -395,6 +395,7 @@ private:
     bool EditorOpen() const { return editorOpen_; }
 
     void ScanFolder(ViewState& view);
+    void EnsureInitialScan();
     void RunDeepSearch(ViewState& view);
     void Navigate(ViewState& view, const std::wstring& path, bool addHistory);
     void RefreshCurrent();
@@ -552,6 +553,7 @@ private:
     bool toastIsError_ = false;
     bool searchFocused_ = false;
     bool caretOn_ = true;
+    bool startupScanDone_ = false;
     bool pendingDeep_ = false;
     bool updateCheckStarted_ = false;
     bool updateReady_ = false;

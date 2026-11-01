@@ -21,6 +21,7 @@ Repositorio: <https://github.com/joseestebanmarinrincones-dot/nebula-media>
 - Filtros Todo / Imágenes / Vídeos / Audio.
 - Zoom de tarjetas configurable (80–160%) con controles en la barra de filtros, Ctrl+rueda y Ctrl +/−/0. Se guarda en la configuración.
 - Scroll optimizado: layout cacheado, solo se materializan las tarjetas visibles, repintados agrupados, fondo cacheado y miniaturas diferidas mientras se desplaza.
+- Arranque optimizado: la ventana aparece antes de escanear la carpeta, Google Drive se detecta solo al abrir su pestaña, las carpetas rápidas se resuelven después del primer frame y las miniaturas se guardan en caché de disco para los siguientes inicios.
 - Búsqueda instantánea en la carpeta actual y búsqueda recursiva ("Subcarpetas") con límites de seguridad.
 - Drag out real con Shell IDList + `CF_HDROP`, igual que el Explorador de Windows: arrastra una o varias selecciones a Premiere, DaVinci Resolve, CapCut, After Effects, Explorer, etc. La ventana permanece visible (ya no se oculta) y solo se vuelve click-through durante el arrastre.
 - Pestaña Google Drive:

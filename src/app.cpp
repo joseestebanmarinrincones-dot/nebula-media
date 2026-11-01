@@ -187,9 +187,7 @@ void App::LoadSettings() {
     zoom_ = static_cast<int>(RegReadDword(L"Zoom", 100));
     zoom_ = std::clamp(((zoom_ + 5) / 10) * 10, 80, 160);
     library_.path = RegReadStr(L"Library", L"");
-    if (!DirExists(library_.path)) library_.path = DefaultLibraryPath();
     driveRoot_ = RegReadStr(L"DriveRoot", L"");
-    if (!driveRoot_.empty() && !DirExists(driveRoot_)) driveRoot_.clear();
     if (tab_ == Tab::Drive) tab_ = Tab::Library;
 }
 
@@ -203,7 +201,6 @@ bool App::Create(HINSTANCE instance, bool showWindow) {
     if (dpi_ <= 0) dpi_ = 96;
 
     LoadSettings();
-    LoadQuickFolders();
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -264,30 +261,13 @@ bool App::Create(HINSTANCE instance, bool showWindow) {
 
     library_.history.clear();
     library_.hist = -1;
-    if (!DirExists(library_.path)) library_.path = DefaultLibraryPath();
     library_.history.push_back(library_.path);
     library_.hist = 0;
-    ScanFolder(library_);
 
-    if (driveRoot_.empty()) {
-        std::wstring mount;
-        std::wstring detected = DetectGoogleDrive(mount);
-        if (!detected.empty()) {
-            driveRoot_ = detected;
-            driveMount_ = mount;
-        }
-    }
-    if (!driveRoot_.empty() && DirExists(driveRoot_)) {
-        drive_.path = driveRoot_;
-        drive_.history.clear();
-        drive_.history.push_back(drive_.path);
-        drive_.hist = 0;
-        ScanFolder(drive_);
-        DeriveDriveMount();
-    }
-
+    // Google Drive detection and the folder scan are deferred until after the
+    // window is visible. Probing external/cloud drives can take seconds and
+    // must never block the first frame.
     thumbs_ = std::make_unique<ThumbnailLoader>(hwnd_);
-    thumbs_->Start();
 
     ready_ = true;
     Render();
@@ -296,14 +276,33 @@ bool App::Create(HINSTANCE instance, bool showWindow) {
         SetForegroundWindow(hwnd_);
         ApplyTopmost();
         SetTimer(hwnd_, 1, 500, nullptr);
-        SetTimer(hwnd_, 4, 4000, nullptr);
+        SetTimer(hwnd_, 4, 15000, nullptr);
+        SetTimer(hwnd_, 7, 1, nullptr);
+        SetTimer(hwnd_, 8, 250, nullptr);
         UpdateUninstallVersion();
         if (RegReadDword(L"Maximized", 0)) {
             ToggleMaximize();
         }
-        Render();
     }
     return true;
+}
+
+void App::EnsureInitialScan() {
+    if (startupScanDone_) return;
+    startupScanDone_ = true;
+
+    // Resolve shell folders and the saved library only after the first frame,
+    // so redirected/offline folders cannot delay the window.
+    LoadQuickFolders();
+    if (library_.path.empty() || !DirExists(library_.path)) {
+        library_.path = DefaultLibraryPath();
+        library_.history.clear();
+        library_.history.push_back(library_.path);
+        library_.hist = 0;
+    }
+    if (!library_.path.empty()) {
+        ScanFolder(library_);
+    }
 }
 
 void App::StartUpdateCheck() {
@@ -335,6 +334,8 @@ void App::UpdateUninstallVersion() {
 }
 
 void App::PrepareSnapshot(const std::wstring& mode, const std::wstring& argument) {
+    EnsureInitialScan();
+    if (thumbs_) thumbs_->Start();
     if (mode == L"drive") {
         SwitchTab(Tab::Drive);
     } else if (mode == L"settings") {
@@ -647,6 +648,8 @@ LRESULT App::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
             KillTimer(hwnd_, 4);
             KillTimer(hwnd_, 5);
             KillTimer(hwnd_, 6);
+            KillTimer(hwnd_, 7);
+            KillTimer(hwnd_, 8);
             if (thumbs_) thumbs_->Stop();
             if (player_) player_->Close();
             PostQuitMessage(0);
@@ -1651,6 +1654,14 @@ void App::OnTimer(UINT_PTR id) {
         KillTimer(hwnd_, 6);
         scrollTimerActive_ = false;
         Render();
+    } else if (id == 7) {
+        KillTimer(hwnd_, 7);
+        EnsureInitialScan();
+        Render();
+    } else if (id == 8) {
+        KillTimer(hwnd_, 8);
+        if (thumbs_) thumbs_->Start();
+        Render(false);
     }
 }
 
